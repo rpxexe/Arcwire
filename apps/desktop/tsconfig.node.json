@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@ipm/shared": ["../../packages/shared/src/index.ts"],
+      "@ipm/security": ["../../packages/security/src/index.ts"],
+      "@ipm/database": ["../../packages/database/src/index.ts"],
+      "@ipm/networking": ["../../packages/networking/src/index.ts"],
+      "@ipm/messaging": ["../../packages/messaging/src/index.ts"],
+      "@ipm/file-sharing": ["../../packages/file-sharing/src/index.ts"],
+      "@ipm/calling": ["../../packages/calling/src/index.ts"]
+    }
+  },
+  "include": [
+    "electron.vite.config.*",
+    "electron/**/*",
+    "../../packages/*/src/**/*"
+  ]
+}

@@ -1,0 +1,160 @@
+import { z } from 'zod';
+import { IPM_PROTOCOL } from '../constants/index';
+import { IpmEventType } from '../events/index';
+
+export const UserStatusEnum = z.enum(['online', 'busy', 'away', 'offline']);
+export type UserStatus = z.infer<typeof UserStatusEnum>;
+
+export const NetworkEnvelopeSchema = z.object({
+  protocol: z.literal(IPM_PROTOCOL),
+  id: z.string().uuid(),
+  type: z.nativeEnum(IpmEventType),
+  senderId: z.string().min(1),
+  receiverId: z.string().min(1),
+  conversationId: z.string().min(1),
+  timestamp: z.number().int().positive(),
+  sequence: z.number().int().nonnegative(),
+  payload: z.record(z.any()),
+});
+export type NetworkEnvelope = z.infer<typeof NetworkEnvelopeSchema>;
+
+// Profile & Identity Schemas
+export const ProfileSchema = z.object({
+  id: z.string(),
+  deviceId: z.string(),
+  displayName: z.string().min(1, 'Display name cannot be empty').max(50),
+  username: z.string().min(2, 'Username must be at least 2 characters').max(30),
+  avatarUrl: z.string().nullable().optional(),
+  status: UserStatusEnum.default('online'),
+  customStatus: z.string().max(100).nullable().optional(),
+  osUsername: z.string(),
+  computerName: z.string(),
+  publicKey: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Profile = z.infer<typeof ProfileSchema>;
+
+export const ProfileCreateSchema = z.object({
+  displayName: z.string().min(1).max(50),
+  username: z.string().min(2).max(30),
+  avatarUrl: z.string().nullable().optional(),
+  status: UserStatusEnum.default('online'),
+  customStatus: z.string().max(100).nullable().optional(),
+});
+export type ProfileCreateInput = z.infer<typeof ProfileCreateSchema>;
+
+export const ProfileUpdateSchema = z.object({
+  displayName: z.string().min(1).max(50).optional(),
+  username: z.string().min(2).max(30).optional(),
+  avatarUrl: z.string().nullable().optional(),
+  status: UserStatusEnum.optional(),
+  customStatus: z.string().max(100).nullable().optional(),
+});
+export type ProfileUpdateInput = z.infer<typeof ProfileUpdateSchema>;
+
+// Settings Schema
+export const AppSettingsSchema = z.object({
+  theme: z.enum(['system', 'dark', 'light']).default('system'),
+  udpPort: z.number().int().min(1024).max(65535),
+  tcpPort: z.number().int().min(1024).max(65535),
+  signalingPort: z.number().int().min(1024).max(65535),
+  minimizeToTray: z.boolean().default(true),
+  startWithWindows: z.boolean().default(false),
+  notificationsEnabled: z.boolean().default(true),
+  autoDownloadFiles: z.boolean().default(false),
+});
+export type AppSettings = z.infer<typeof AppSettingsSchema>;
+
+// Discovery Schemas
+export const DeviceAnnouncePayloadSchema = z.object({
+  deviceId: z.string(),
+  displayName: z.string(),
+  hostname: z.string(),
+  osUser: z.string(),
+  tcpPort: z.number().int().positive(),
+  signalingPort: z.number().int().positive(),
+  publicKey: z.string(),
+  avatarHash: z.string().nullable().optional(),
+  status: UserStatusEnum,
+});
+export type DeviceAnnouncePayload = z.infer<typeof DeviceAnnouncePayloadSchema>;
+
+// Authentication Schemas
+export const AuthChallengePayloadSchema = z.object({
+  nonce: z.string(),
+  timestamp: z.number(),
+});
+export type AuthChallengePayload = z.infer<typeof AuthChallengePayloadSchema>;
+
+export const AuthResponsePayloadSchema = z.object({
+  signature: z.string(),
+  publicKey: z.string(),
+  timestamp: z.number(),
+});
+export type AuthResponsePayload = z.infer<typeof AuthResponsePayloadSchema>;
+
+// Messaging Schemas
+export const ChatMessagePayloadSchema = z.object({
+  messageId: z.string().uuid(),
+  content: z.string(),
+  contentType: z.enum(['text', 'file', 'system']).default('text'),
+  isEncrypted: z.boolean().default(false),
+  sentAt: z.number(),
+});
+export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;
+
+export const MessageReceiptPayloadSchema = z.object({
+  messageId: z.string().uuid(),
+  receiptType: z.enum(['ack', 'delivered', 'read']),
+  timestamp: z.number(),
+});
+export type MessageReceiptPayload = z.infer<typeof MessageReceiptPayloadSchema>;
+
+// File Streaming Schemas
+export const FileOfferPayloadSchema = z.object({
+  transferId: z.string().uuid(),
+  fileName: z.string(),
+  fileSize: z.number().int().positive(),
+  fileHash: z.string(),
+  mimeType: z.string(),
+  totalChunks: z.number().int().positive(),
+  chunkSize: z.number().int().positive(),
+});
+export type FileOfferPayload = z.infer<typeof FileOfferPayloadSchema>;
+
+export const FileChunkPayloadSchema = z.object({
+  transferId: z.string().uuid(),
+  chunkIndex: z.number().int().nonnegative(),
+  chunkHash: z.string(),
+  data: z.string(), // base64
+});
+export type FileChunkPayload = z.infer<typeof FileChunkPayloadSchema>;
+
+// System Info
+export const SystemInfoSchema = z.object({
+  osUsername: z.string(),
+  computerName: z.string(),
+  platform: z.string(),
+  arch: z.string(),
+  networkInterfaces: z.array(
+    z.object({
+      name: z.string(),
+      address: z.string(),
+      netmask: z.string(),
+      family: z.string(),
+      mac: z.string(),
+      internal: z.boolean(),
+    })
+  ),
+  paths: z.object({
+    appData: z.string(),
+    data: z.string(),
+    attachments: z.string(),
+    transfers: z.string(),
+    avatars: z.string(),
+    logs: z.string(),
+    security: z.string(),
+  }),
+});
+export type SystemInfo = z.infer<typeof SystemInfoSchema>;
