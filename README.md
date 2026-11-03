@@ -264,3 +264,4 @@ For in-depth technical specifications, consult the detailed documentation:
 - [Security Architecture & Threat Model](docs/security.md)
 - [Implementation Plan & Engineering Conventions](docs/implementation.md)
 - [Milestone Checklist & Acceptance Criteria](docs/milestones.md)
+
