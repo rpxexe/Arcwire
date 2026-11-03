@@ -25,3 +25,4 @@ describe('Security Package - Path Traversal Guard', () => {
     expect(sanitizeFileName('report:annual<2026>.docx')).toBe('report_annual_2026_.docx');
   });
 });
+

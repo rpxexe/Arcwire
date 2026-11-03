@@ -240,3 +240,4 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+

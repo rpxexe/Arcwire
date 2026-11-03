@@ -39,3 +39,4 @@ const api: IpcApi = {
 };
 
 contextBridge.exposeInMainWorld('api', api);
+

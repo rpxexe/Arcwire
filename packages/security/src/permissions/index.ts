@@ -45,3 +45,4 @@ export function validatePathWithinRoot(targetPath: string, rootDir: string): str
 export function sanitizeFileName(fileName: string): string {
   return path.basename(fileName).replace(/[/\\?%*:|"<>]/g, '_');
 }
+

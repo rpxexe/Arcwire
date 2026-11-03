@@ -33,3 +33,4 @@ export const DEFAULT_APP_SETTINGS = {
   notificationsEnabled: true,
   autoDownloadFiles: false,
 } as const;
+

@@ -242,3 +242,4 @@ Key-value configuration store.
 - `key` (TEXT, PRIMARY KEY)
 - `value` (TEXT, NOT NULL) - JSON string.
 - `updatedAt` (INTEGER, NOT NULL)
+

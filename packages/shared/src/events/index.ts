@@ -84,3 +84,4 @@ export enum IpcChannels {
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
   EVENT_MESSAGE_RECEIVED = 'event:message-received',
 }
+

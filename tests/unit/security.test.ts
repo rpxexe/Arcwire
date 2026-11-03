@@ -60,3 +60,4 @@ describe('Security Package - SecretKeyStore', () => {
     expect(loaded).toBe(secret);
   });
 });
+

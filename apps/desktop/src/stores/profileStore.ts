@@ -48,3 +48,4 @@ export const useProfileStore = create<ProfileState>((set) => ({
     return updated;
   },
 }));
+

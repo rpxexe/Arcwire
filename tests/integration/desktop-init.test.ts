@@ -117,3 +117,4 @@ describe('Phase 1 Integration - Database & Desktop Core Services', () => {
     expect(retrieved.minimizeToTray).toBe(false);
   });
 });
+

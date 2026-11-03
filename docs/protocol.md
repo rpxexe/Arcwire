@@ -189,3 +189,4 @@ When connecting over TCP:
   }
   ```
 - **Integrity:** Once `chunkIndex == totalChunks - 1`, the receiver recalculates the full file SHA-256 hash. Only when matched against the offer's `fileHash` is `FILE_COMPLETE` sent.
+

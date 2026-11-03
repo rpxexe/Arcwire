@@ -11,3 +11,4 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   activeTab: 'chats',
   setActiveTab: (tab: NavTab) => set({ activeTab: tab }),
 }));
+

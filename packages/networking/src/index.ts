@@ -6,3 +6,4 @@ export interface TransportAdapter {
   send(peerId: string, message: unknown): Promise<void>;
   onMessage(callback: (message: unknown) => void): void;
 }
+

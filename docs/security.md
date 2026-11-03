@@ -87,3 +87,4 @@ Folder sharing exposes specific local paths over the LAN. To prevent remote mali
   ```
 - **Navigation Guard:** `will-navigate` and `setWindowOpenHandler` are intercepted and blocked. External links are opened using safe shell openers with protocol validation (`https:` only).
 - **Media Permission Guard:** `session.defaultSession.setPermissionRequestHandler` explicitly handles camera and microphone grants.
+

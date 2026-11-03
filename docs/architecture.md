@@ -216,3 +216,4 @@ All runtime artifacts reside within the Windows user roaming directory `%APPDATA
 ├── backups/               # Automated database snapshots
 └── security/              # Encrypted device key store (protected via DPAPI)
 ```
+

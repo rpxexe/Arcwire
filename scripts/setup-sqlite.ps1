@@ -20,3 +20,4 @@ foreach ($dir in $pkgDirs) {
     Write-Host "better_sqlite3.node already present in $($dir.FullName)"
   }
 }
+

@@ -45,3 +45,4 @@ export class AppPaths {
     return paths;
   }
 }
+

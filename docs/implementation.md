@@ -65,3 +65,4 @@
 2. **Repository Pattern:** Database interactions are encapsulated within repositories (`ProfileRepository`, `DeviceRepository`, `MessageRepository`, etc.) rather than ad-hoc SQL queries.
 3. **Event-Driven Service Layer:** Main process services communicate internally via an `AppEventBus` typed EventEmitter.
 4. **Idempotent Network Processing:** Every incoming frame is checked against processed UUID caches before triggering side effects.
+
