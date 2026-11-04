@@ -1,18 +1,37 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { IpcChannels, ProfileCreateSchema, ProfileUpdateSchema, AppSettingsSchema } from '@ipm/shared';
+import {
+  IpcChannels,
+  ProfileCreateSchema,
+  ProfileUpdateSchema,
+  AppSettingsSchema,
+  DirectConnectInputSchema,
+  TrustDeviceInputSchema,
+} from '@ipm/shared';
 import { SystemInfoService } from '../services/SystemInfoService';
-import { ProfileRepository, SettingsRepository } from '@ipm/database';
+import { ProfileRepository, SettingsRepository, DeviceRepository } from '@ipm/database';
 import { SecretKeyStore, generateDeviceIdentity, deriveDeviceId } from '@ipm/security';
+import type { LanTransportAdapter } from '@ipm/networking';
 
 export interface IpcHandlerDependencies {
   profileRepo: ProfileRepository;
   settingsRepo: SettingsRepository;
+  deviceRepo: DeviceRepository;
   secretStore: SecretKeyStore;
   getMainWindow: () => BrowserWindow | null;
+  getLanAdapter: () => LanTransportAdapter | null;
+  initLanAdapter: () => Promise<LanTransportAdapter | null>;
 }
 
 export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
-  const { profileRepo, settingsRepo, secretStore, getMainWindow } = deps;
+  const {
+    profileRepo,
+    settingsRepo,
+    deviceRepo,
+    secretStore,
+    getMainWindow,
+    getLanAdapter,
+    initLanAdapter,
+  } = deps;
 
   // Window Controls
   ipcMain.handle(IpcChannels.WINDOW_MINIMIZE, () => {
@@ -51,7 +70,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     return profileRepo.getProfile();
   });
 
-  ipcMain.handle(IpcChannels.PROFILE_CREATE, (_event, rawInput: unknown) => {
+  ipcMain.handle(IpcChannels.PROFILE_CREATE, async (_event, rawInput: unknown) => {
     const validated = ProfileCreateSchema.parse(rawInput);
     const systemInfo = SystemInfoService.getSystemInfo();
 
@@ -74,16 +93,32 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
       deviceId = deriveDeviceId(publicKey);
     }
 
-    return profileRepo.createProfile(
+    const created = profileRepo.createProfile(
       validated,
       { osUsername: systemInfo.osUsername, computerName: systemInfo.computerName },
       { deviceId, publicKey }
     );
+
+    // Initialize LAN networking right after onboarding
+    await initLanAdapter();
+
+    return created;
   });
 
   ipcMain.handle(IpcChannels.PROFILE_UPDATE, (_event, rawInput: unknown) => {
     const validated = ProfileUpdateSchema.parse(rawInput);
-    return profileRepo.updateProfile(validated);
+    const updated = profileRepo.updateProfile(validated);
+
+    // Update LAN adapter metadata if active
+    const adapter = getLanAdapter();
+    if (adapter && updated) {
+      adapter.updateProfile({
+        displayName: updated.displayName,
+        status: updated.status as any,
+      });
+    }
+
+    return updated;
   });
 
   // Settings Management
@@ -94,5 +129,38 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.SETTINGS_UPDATE, (_event, rawInput: unknown) => {
     const validated = AppSettingsSchema.partial().parse(rawInput);
     return settingsRepo.updateSettings(validated);
+  });
+
+  // Devices & Network (Phase 2)
+  ipcMain.handle(IpcChannels.DEVICES_LIST, () => {
+    return deviceRepo.getAllDevices();
+  });
+
+  ipcMain.handle(IpcChannels.DEVICES_REFRESH, async () => {
+    const adapter = getLanAdapter();
+    if (adapter) {
+      adapter.scanNow();
+    }
+  });
+
+  ipcMain.handle(IpcChannels.DEVICES_CONNECT_MANUAL, async (_event, rawInput: unknown) => {
+    const validated = DirectConnectInputSchema.parse(rawInput);
+    const adapter = getLanAdapter();
+    if (!adapter) {
+      throw new Error('LAN networking is not initialized. Please complete onboarding first.');
+    }
+    return adapter.connectDirect(validated.ipAddress, validated.port);
+  });
+
+  ipcMain.handle(IpcChannels.DEVICES_TOGGLE_TRUST, (_event, rawInput: unknown) => {
+    const validated = TrustDeviceInputSchema.parse(rawInput);
+    deviceRepo.setDeviceTrust(validated.deviceId, validated.isTrusted);
+    const updated = deviceRepo.getDeviceById(validated.deviceId);
+    if (updated) {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IpcChannels.EVENT_DEVICE_UPDATED, updated);
+      }
+    }
   });
 }

@@ -80,7 +80,20 @@ export const DeviceAnnouncePayloadSchema = z.object({
 });
 export type DeviceAnnouncePayload = z.infer<typeof DeviceAnnouncePayloadSchema>;
 
+export const DeviceQueryPayloadSchema = z.object({
+  timestamp: z.number(),
+  requestedDeviceId: z.string().optional(),
+});
+export type DeviceQueryPayload = z.infer<typeof DeviceQueryPayloadSchema>;
+
 // Authentication Schemas
+export const AuthRequestPayloadSchema = z.object({
+  deviceId: z.string(),
+  publicKey: z.string(),
+  timestamp: z.number(),
+});
+export type AuthRequestPayload = z.infer<typeof AuthRequestPayloadSchema>;
+
 export const AuthChallengePayloadSchema = z.object({
   nonce: z.string(),
   timestamp: z.number(),
@@ -93,6 +106,27 @@ export const AuthResponsePayloadSchema = z.object({
   timestamp: z.number(),
 });
 export type AuthResponsePayload = z.infer<typeof AuthResponsePayloadSchema>;
+
+export const AuthAcceptedPayloadSchema = z.object({
+  deviceId: z.string(),
+  publicKey: z.string(),
+  timestamp: z.number(),
+  signature: z.string().optional(),
+});
+export type AuthAcceptedPayload = z.infer<typeof AuthAcceptedPayloadSchema>;
+
+// Direct Device Connection & Trust
+export const DirectConnectInputSchema = z.object({
+  ipAddress: z.string().min(1, 'IP address is required'),
+  port: z.number().int().min(1024).max(65535).default(45821),
+});
+export type DirectConnectInput = z.infer<typeof DirectConnectInputSchema>;
+
+export const TrustDeviceInputSchema = z.object({
+  deviceId: z.string(),
+  isTrusted: z.boolean(),
+});
+export type TrustDeviceInput = z.infer<typeof TrustDeviceInputSchema>;
 
 // Messaging Schemas
 export const ChatMessagePayloadSchema = z.object({

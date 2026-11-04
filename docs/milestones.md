@@ -22,16 +22,30 @@
 ---
 
 ## Phase 2: LAN Networking & Discovery
-- [ ] Networking package (`@ipm/networking`):
-  - [ ] Network interface detection & multi-adapter handling
-  - [ ] UDP Broadcast Discovery Service (port 45820)
-  - [ ] mDNS discovery responder & client
-  - [ ] TLS 1.3 TCP Server & Connection Manager (port 45821)
-  - [ ] IPM/1 Length-prefixed framing codec
-  - [ ] Ed25519 mutual authentication handshake
-  - [ ] Manual IP/Port connection dialog
-- [ ] Device management UI: discovered devices, status indicator, trust verification
-- [ ] Network simulation tests (connection loss, reconnect, multiple interfaces)
+- [x] Networking package (`@ipm/networking`):
+  - [x] Network interface detection & multi-adapter handling (`NetworkInterfaceManager.ts`)
+  - [x] UDP Broadcast Discovery Service on port 45820 (`UdpDiscoveryService.ts`)
+  - [x] mDNS discovery responder & client on `_ipm._tcp.local` (`MdnsDiscoveryService.ts`)
+  - [x] Discovery coordinator with offline TTL detection (`DiscoveryCoordinator.ts`)
+  - [x] TLS 1.3 TCP Server on port 45821 (`TlsServer.ts`)
+  - [x] Connection manager & connection pool with heartbeat & backoff (`ConnectionPool.ts`)
+  - [x] IPM/1 Length-prefixed framing codec with 1 MB limit (`FramingCodec.ts`, `LanTransportConnection.ts`)
+  - [x] Ed25519 mutual challenge-response authentication handshake (`HandshakeManager.ts`)
+  - [x] Self-signed TLS certificate generation (`@ipm/security/certificates`)
+  - [x] Transport abstraction layer (`TransportAdapter`, `LanTransportAdapter.ts`)
+  - [x] Manual direct IP/Port connection (`LanTransportAdapter.connectDirect`)
+- [x] Device management UI:
+  - [x] Discovered devices list with real-time updates (`deviceStore.ts`)
+  - [x] Real-time status indicators (online, busy, away, offline)
+  - [x] Trusted device verification toggle (`trusted_devices` repository)
+  - [x] Direct IP Connect modal dialog with validation & error handling (`DirectConnectModal.tsx`)
+  - [x] Local node status card (IP, listening ports, device ID)
+- [x] Network unit & integration test suites:
+  - [x] Framing encoder/decoder & chunk fragmentation tests (`framing.test.ts`)
+  - [x] Subnet broadcast calculations across /8, /16, /24, /28 masks (`network-interface.test.ts`)
+  - [x] Real TLS 1.3 socket & Ed25519 mutual authentication handshake (`lan-networking.test.ts`)
+  - [x] Malicious client signature rejection test (`lan-networking.test.ts`)
+  - [x] Real UDP discovery announce and query exchange (`udp-discovery.test.ts`)
 
 ---
 

@@ -6,6 +6,8 @@ import {
   SystemInfo,
   NetworkEnvelope,
   UserStatus,
+  DirectConnectInput,
+  TrustDeviceInput,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -69,9 +71,16 @@ export interface IpcApi {
   getSettings: () => Promise<AppSettings>;
   updateSettings: (input: Partial<AppSettings>) => Promise<AppSettings>;
 
+  // Devices & Network (Phase 2)
+  getDevices: () => Promise<DeviceInfo[]>;
+  refreshDevices: () => Promise<void>;
+  connectManual: (input: DirectConnectInput) => Promise<DeviceInfo>;
+  toggleDeviceTrust: (input: TrustDeviceInput) => Promise<void>;
+
   // Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
   onDeviceDiscovered: (callback: (device: DeviceInfo) => void) => () => void;
+  onDeviceUpdated: (callback: (device: DeviceInfo) => void) => () => void;
   onMessageReceived: (callback: (message: MessageItem) => void) => () => void;
 }
 
