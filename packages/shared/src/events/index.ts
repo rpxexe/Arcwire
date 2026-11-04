@@ -78,10 +78,11 @@ export enum IpcChannels {
   DEVICES_LIST = 'devices:list',
   DEVICES_REFRESH = 'devices:refresh',
   DEVICES_CONNECT_MANUAL = 'devices:connect-manual',
+  DEVICES_TOGGLE_TRUST = 'devices:toggle-trust',
 
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
+  EVENT_DEVICE_UPDATED = 'event:device-updated',
   EVENT_MESSAGE_RECEIVED = 'event:message-received',
 }
-

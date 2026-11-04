@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannels, IpcApi } from '@ipm/shared';
+import { IpcChannels, IpcApi, DeviceInfo, MessageItem } from '@ipm/shared';
 
 const api: IpcApi = {
   // Window
@@ -20,6 +20,12 @@ const api: IpcApi = {
   getSettings: () => ipcRenderer.invoke(IpcChannels.SETTINGS_GET),
   updateSettings: (input) => ipcRenderer.invoke(IpcChannels.SETTINGS_UPDATE, input),
 
+  // Devices & Network (Phase 2)
+  getDevices: () => ipcRenderer.invoke(IpcChannels.DEVICES_LIST),
+  refreshDevices: () => ipcRenderer.invoke(IpcChannels.DEVICES_REFRESH),
+  connectManual: (input) => ipcRenderer.invoke(IpcChannels.DEVICES_CONNECT_MANUAL, input),
+  toggleDeviceTrust: (input) => ipcRenderer.invoke(IpcChannels.DEVICES_TOGGLE_TRUST, input),
+
   // Event Listeners
   onNetworkStatusChange: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { online: boolean; ip?: string }) => callback(data);
@@ -27,16 +33,20 @@ const api: IpcApi = {
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_NETWORK_STATUS, handler);
   },
   onDeviceDiscovered: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    const handler = (_event: Electron.IpcRendererEvent, data: DeviceInfo) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_DEVICE_DISCOVERED, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_DEVICE_DISCOVERED, handler);
   },
+  onDeviceUpdated: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: DeviceInfo) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_DEVICE_UPDATED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_DEVICE_UPDATED, handler);
+  },
   onMessageReceived: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    const handler = (_event: Electron.IpcRendererEvent, data: MessageItem) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_MESSAGE_RECEIVED, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_MESSAGE_RECEIVED, handler);
   },
 };
 
 contextBridge.exposeInMainWorld('api', api);
-

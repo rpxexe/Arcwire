@@ -1,6 +1,7 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, lt, and, ne } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { DatabaseService } from '../connection';
-import { devices, deviceAddresses } from '../schema/index';
+import { devices, deviceAddresses, trustedDevices } from '../schema/index';
 import type { DeviceInfo, UserStatus } from '@ipm/shared';
 
 export class DeviceRepository {
@@ -19,7 +20,7 @@ export class DeviceRepository {
     tcpPort: number;
     signalingPort: number;
     status: UserStatus;
-  }): void {
+  }): DeviceInfo {
     const db = this.dbService.getDb();
     const now = Date.now();
 
@@ -67,6 +68,12 @@ export class DeviceRepository {
         },
       })
       .run();
+
+    const device = this.getDeviceById(data.id);
+    if (!device) {
+      throw new Error(`Failed to retrieve upserted device ${data.id}`);
+    }
+    return device;
   }
 
   public getAllDevices(): DeviceInfo[] {
@@ -81,6 +88,13 @@ export class DeviceRepository {
         .limit(1)
         .all()[0];
 
+      const trusted = db
+        .select()
+        .from(trustedDevices)
+        .where(eq(trustedDevices.deviceId, d.id))
+        .limit(1)
+        .all()[0];
+
       return {
         id: d.id,
         publicKey: d.publicKey,
@@ -91,7 +105,7 @@ export class DeviceRepository {
         signalingPort: addr?.signalingPort ?? 45822,
         lastSeen: d.lastSeen,
         status: d.status as UserStatus,
-        isTrusted: false,
+        isTrusted: !!trusted,
       };
     });
   }
@@ -110,6 +124,13 @@ export class DeviceRepository {
       .limit(1)
       .all()[0];
 
+    const trusted = db
+      .select()
+      .from(trustedDevices)
+      .where(eq(trustedDevices.deviceId, d.id))
+      .limit(1)
+      .all()[0];
+
     return {
       id: d.id,
       publicKey: d.publicKey,
@@ -120,7 +141,75 @@ export class DeviceRepository {
       signalingPort: addr?.signalingPort ?? 45822,
       lastSeen: d.lastSeen,
       status: d.status as UserStatus,
-      isTrusted: false,
+      isTrusted: !!trusted,
     };
+  }
+
+  public setDeviceTrust(deviceId: string, isTrusted: boolean): void {
+    const db = this.dbService.getDb();
+    if (isTrusted) {
+      const dev = this.getDeviceById(deviceId);
+      if (!dev) {
+        throw new Error(`Cannot trust non-existent device ${deviceId}`);
+      }
+      const fingerprint = createHash('sha256')
+        .update(Buffer.from(dev.publicKey, 'base64'))
+        .digest('hex');
+
+      db.insert(trustedDevices)
+        .values({
+          id: `trust_${deviceId}`,
+          deviceId,
+          fingerprint,
+          verificationState: 'verified',
+          verifiedAt: Date.now(),
+        })
+        .onConflictDoUpdate({
+          target: trustedDevices.deviceId,
+          set: {
+            fingerprint,
+            verificationState: 'verified',
+            verifiedAt: Date.now(),
+          },
+        })
+        .run();
+    } else {
+      db.delete(trustedDevices).where(eq(trustedDevices.deviceId, deviceId)).run();
+    }
+  }
+
+  public updateDeviceStatus(deviceId: string, status: UserStatus): void {
+    const db = this.dbService.getDb();
+    db.update(devices)
+      .set({
+        status,
+        lastSeen: Date.now(),
+        updatedAt: Date.now(),
+      })
+      .where(eq(devices.id, deviceId))
+      .run();
+  }
+
+  public markDevicesOfflineOlderThan(thresholdMs: number): string[] {
+    const db = this.dbService.getDb();
+    const cutoff = Date.now() - thresholdMs;
+
+    const staleDevices = db
+      .select()
+      .from(devices)
+      .where(and(lt(devices.lastSeen, cutoff), ne(devices.status, 'offline')))
+      .all();
+
+    if (staleDevices.length > 0) {
+      const ids = staleDevices.map((d) => d.id);
+      for (const id of ids) {
+        db.update(devices)
+          .set({ status: 'offline', updatedAt: Date.now() })
+          .where(eq(devices.id, id))
+          .run();
+      }
+      return ids;
+    }
+    return [];
   }
 }

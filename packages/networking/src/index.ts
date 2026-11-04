@@ -1,9 +1,11 @@
-export * from '@ipm/shared';
-
-export interface TransportAdapter {
-  connect(peerId: string): Promise<void>;
-  disconnect(peerId: string): Promise<void>;
-  send(peerId: string, message: unknown): Promise<void>;
-  onMessage(callback: (message: unknown) => void): void;
-}
-
+export * from './interfaces/TransportAdapter';
+export * from './transport/FramingCodec';
+export * from './transport/LanTransportConnection';
+export * from './transport/TlsServer';
+export * from './transport/LanTransportAdapter';
+export * from './authentication/HandshakeManager';
+export * from './connection-manager/ConnectionPool';
+export * from './discovery/NetworkInterfaceManager';
+export * from './discovery/UdpDiscoveryService';
+export * from './discovery/MdnsDiscoveryService';
+export * from './discovery/DiscoveryCoordinator';

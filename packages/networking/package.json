@@ -8,12 +8,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ipm/security": "workspace:*",
     "@ipm/shared": "workspace:*",
-    "@ipm/security": "workspace:*"
+    "@types/multicast-dns": "^7.2.4",
+    "multicast-dns": "^7.2.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
     "typescript": "^5.7.3"
   }
 }
-
