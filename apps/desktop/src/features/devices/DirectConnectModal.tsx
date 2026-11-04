@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Globe, AlertCircle, Loader2 } from 'lucide-react';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useNavigationStore } from '../../stores/navigationStore';
 
 interface DirectConnectModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface DirectConnectModalProps {
 export const DirectConnectModal: React.FC<DirectConnectModalProps> = ({ isOpen, onClose }) => {
   const { connectManual } = useDeviceStore();
   const { createDirectChat } = useChatStore();
+  const { setActiveTab } = useNavigationStore();
   const [ipAddress, setIpAddress] = useState('');
   const [port, setPort] = useState('45821');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,8 +41,10 @@ export const DirectConnectModal: React.FC<DirectConnectModalProps> = ({ isOpen, 
       if (dev && dev.id) {
         try {
           await createDirectChat(dev.id);
+          setActiveTab('chats');
         } catch (chatErr) {
           console.warn('[DirectConnect] Created peer but chat failed:', chatErr);
+          setActiveTab('chats');
         }
       }
       setIsSubmitting(false);

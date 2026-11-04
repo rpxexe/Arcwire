@@ -124,9 +124,26 @@ export class FileTransferService extends EventEmitter {
   }
 
   public async startSendingChunks(transferId: string): Promise<void> {
-    const session = this.manager.getSession(transferId);
-    const filePath = this.outgoingFilePaths.get(transferId);
+    let session = this.manager.getSession(transferId);
+    let filePath = this.outgoingFilePaths.get(transferId);
     const adapter = this.getLanAdapter();
+
+    if (!session) {
+      const dbTransfer = this.transferRepo.getTransferById(transferId);
+      if (dbTransfer) {
+        const totalChunks = Math.ceil(dbTransfer.fileSize / FileChunkStreamer.DEFAULT_CHUNK_SIZE);
+        this.manager.registerTransfer(dbTransfer, totalChunks);
+        session = this.manager.getSession(transferId);
+      }
+    }
+
+    if (!filePath) {
+      const dbTransfer = this.transferRepo.getTransferById(transferId);
+      if (dbTransfer?.finalPath && fs.existsSync(dbTransfer.finalPath)) {
+        filePath = dbTransfer.finalPath;
+        this.outgoingFilePaths.set(transferId, filePath);
+      }
+    }
 
     if (!session || !filePath || !adapter) return;
 
