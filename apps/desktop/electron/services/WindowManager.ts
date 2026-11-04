@@ -29,7 +29,7 @@ export class WindowManager {
       minWidth: 980,
       minHeight: 640,
       frame: false,
-      title: 'IP Messenger',
+      title: 'Arcwire',
       icon: iconPath,
       show: false,
       backgroundColor: '#0f172a',
@@ -46,7 +46,10 @@ export class WindowManager {
     this.setupSecurityGuards(this.mainWindow);
 
     this.mainWindow.on('ready-to-show', () => {
-      this.mainWindow?.show();
+      const isHidden = process.argv.includes('--hidden');
+      if (!isHidden) {
+        this.mainWindow?.show();
+      }
     });
 
     this.mainWindow.on('close', (event) => {
@@ -103,4 +106,3 @@ export class WindowManager {
     });
   }
 }
-

@@ -51,8 +51,25 @@ export class PathTraversalGuard {
    */
   public static resolveSafePath(rootPath: string, relativeSubPath: string): string {
     const safeRoot = this.validateRootPath(rootPath);
+
+    // Block null bytes and control characters
+    if (/[\x00-\x1F\x7F]/.test(relativeSubPath)) {
+      throw new SecurityError(`Path contains forbidden control characters or null bytes: ${relativeSubPath}`);
+    }
+
+    // Block UNC network paths
+    if (relativeSubPath.startsWith('\\\\') || relativeSubPath.startsWith('//')) {
+      throw new SecurityError(`UNC network paths are forbidden: ${relativeSubPath}`);
+    }
+
     // Normalize relative path
     const normalizedSub = relativeSubPath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    // Block NTFS Alternate Data Streams (ADS) and illicit drive specifiers in subpath
+    if (normalizedSub.includes(':')) {
+      throw new SecurityError(`Alternate Data Streams (ADS) and drive specifiers in subpath are forbidden: ${relativeSubPath}`);
+    }
+
     const resolvedTarget = path.resolve(safeRoot, normalizedSub);
 
     // Verify prefix boundary
