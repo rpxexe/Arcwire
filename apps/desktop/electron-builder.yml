@@ -27,3 +27,4 @@ nsis:
   shortcutName: Arcwire
   uninstallDisplayName: Arcwire LAN Messenger
   runAfterFinish: true
+
