@@ -141,6 +141,8 @@ export enum IpcChannels {
   CALLS_SIGNAL = 'calls:signal',
   CALLS_LIST = 'calls:list',
   CALLS_GET_SOURCES = 'calls:get-sources',
+  CALLS_START_SCREEN_SHARE = 'calls:start-screen-share',
+  CALLS_STOP_SCREEN_SHARE = 'calls:stop-screen-share',
 
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
@@ -161,4 +163,6 @@ export enum IpcChannels {
   EVENT_CALL_REJECTED = 'event:call-rejected',
   EVENT_CALL_ENDED = 'event:call-ended',
   EVENT_CALL_SIGNAL = 'event:call-signal',
+  EVENT_SCREEN_SHARE_STARTED = 'event:screen-share-started',
+  EVENT_SCREEN_SHARE_STOPPED = 'event:screen-share-stopped',
 }

@@ -86,19 +86,19 @@
 ---
 
 ## Phase 6: Voice & Video Calling
-- [ ] Calling package (`@ipm/calling`):
-  - [ ] Local TCP signaling channel (port 45822)
-  - [ ] WebRTC RTCPeerConnection lifecycle (LAN host candidates only)
-  - [ ] Audio calling pipeline (device selection, mute, quality monitor)
-  - [ ] Video calling pipeline (camera selection, resolution controls)
-- [ ] In-call UI: incoming call banner, call screen, video elements, full screen
+- [x] Calling package (`@ipm/calling`):
+  - [x] Local TCP signaling channel (port 45822)
+  - [x] WebRTC RTCPeerConnection lifecycle (LAN host candidates only)
+  - [x] Audio calling pipeline (device selection, mute, quality monitor)
+  - [x] Video calling pipeline (camera selection, resolution controls)
+- [x] In-call UI: incoming call banner, call screen, video elements, full screen
 
 ---
 
 ## Phase 7: Screen Sharing
-- [ ] Desktop capturer source enumeration (screens, windows)
-- [ ] WebRTC video track replacement for screen feed
-- [ ] Screen sharing controls and remote viewer interface
+- [x] Desktop capturer source enumeration (screens, windows)
+- [x] WebRTC video track replacement for screen feed
+- [x] Screen sharing controls and remote viewer interface
 
 ---
 

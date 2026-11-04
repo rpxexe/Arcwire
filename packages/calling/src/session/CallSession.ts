@@ -22,6 +22,7 @@ export class CallSession extends EventEmitter {
   public isMuted: boolean = false;
   public isVideoEnabled: boolean = true;
   public isScreenSharing: boolean = false;
+  public sharedSourceName: string | null = null;
 
   private durationTimer: NodeJS.Timeout | null = null;
   private durationSeconds: number = 0;
@@ -92,12 +93,13 @@ export class CallSession extends EventEmitter {
     return this.isVideoEnabled;
   }
 
-  public setScreenSharing(sharing: boolean): void {
+  public setScreenSharing(sharing: boolean, sourceName?: string): void {
     this.isScreenSharing = sharing;
+    this.sharedSourceName = sharing ? (sourceName || 'Display') : null;
     if (sharing) {
       this.callType = 'screen';
     }
-    this.emit('screenShareToggled', sharing);
+    this.emit('screenShareToggled', { isScreenSharing: sharing, sourceName: this.sharedSourceName });
   }
 
   private startDurationTimer(): void {

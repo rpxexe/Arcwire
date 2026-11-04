@@ -1,10 +1,11 @@
-import { LanIceConfig } from '@ipm/calling';
-import { CallSignalInput } from '@ipm/shared';
+import { LanIceConfig, CallStatsMonitor } from '@ipm/calling';
+import { CallSignalInput, ScreenShareOptions, CallStats } from '@ipm/shared';
 
 export interface WebRtcCallbacks {
   onRemoteStream: (stream: MediaStream) => void;
   onIceConnectionStateChange: (state: RTCIceConnectionState) => void;
   onCallEnded: () => void;
+  onScreenShareEnded?: () => void;
 }
 
 export class WebRtcService {
@@ -15,6 +16,8 @@ export class WebRtcService {
   private callId: string | null = null;
   private targetDeviceId: string | null = null;
   private callbacks: WebRtcCallbacks | null = null;
+  private statsMonitor: CallStatsMonitor = new CallStatsMonitor();
+  private originalCallType: 'voice' | 'video' | 'screen' = 'voice';
 
   public initialize(
     callId: string,
@@ -24,8 +27,9 @@ export class WebRtcService {
     this.callId = callId;
     this.targetDeviceId = targetDeviceId;
     this.callbacks = callbacks;
+    this.statsMonitor.reset();
 
-    // Use pure LAN ICE configuration without external STUN/TURN
+    // Pure LAN ICE configuration without external STUN/TURN
     const config = LanIceConfig.getConfiguration();
     this.peerConnection = new RTCPeerConnection(config);
 
@@ -72,6 +76,7 @@ export class WebRtcService {
     desktopSourceId?: string
   ): Promise<MediaStream> {
     this.stopLocalStream();
+    this.originalCallType = callType;
 
     if (callType === 'screen' && desktopSourceId) {
       // Electron desktopCapturer screen stream
@@ -85,6 +90,7 @@ export class WebRtcService {
             maxWidth: 1920,
             minHeight: 720,
             maxHeight: 1080,
+            maxFrameRate: 30,
           },
         },
       });
@@ -118,6 +124,122 @@ export class WebRtcService {
     }
 
     return this.localStream;
+  }
+
+  /**
+   * Smoothly replaces video track with screen capture during an active call.
+   */
+  public async replaceVideoTrackWithScreen(
+    desktopSourceId: string,
+    options?: Partial<ScreenShareOptions>
+  ): Promise<MediaStream> {
+    const preset = options?.preset || 'balanced';
+    let maxFps = options?.maxFrameRate || (preset === 'smooth' ? 60 : preset === 'crisp' ? 15 : 30);
+    const contentHint = options?.contentHint || (preset === 'smooth' ? 'motion' : 'detail');
+
+    const constraints: any = {
+      audio: options?.withAudio
+        ? {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+            },
+          }
+        : false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: desktopSourceId,
+          minWidth: 1280,
+          maxWidth: 1920,
+          minHeight: 720,
+          maxHeight: 1080,
+          maxFrameRate: maxFps,
+        },
+      },
+    };
+
+    const newScreenStream = await (navigator.mediaDevices as any).getUserMedia(constraints);
+    const newVideoTrack = newScreenStream.getVideoTracks()[0];
+    if (!newVideoTrack) {
+      throw new Error('Failed to acquire screen capture video track');
+    }
+
+    newVideoTrack.contentHint = contentHint;
+
+    // Handle OS-level window closure or user stopping share
+    newVideoTrack.onended = () => {
+      this.callbacks?.onScreenShareEnded?.();
+    };
+
+    if (this.peerConnection) {
+      const videoSender = this.peerConnection
+        .getSenders()
+        .find((s) => s.track && s.track.kind === 'video');
+
+      if (videoSender) {
+        await videoSender.replaceTrack(newVideoTrack);
+      } else {
+        // If initial call was voice-only (no video sender), add track
+        this.peerConnection.addTrack(newVideoTrack, newScreenStream);
+        await this.createOffer();
+      }
+    }
+
+    // Stop previous screen stream if any
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach((t) => t.stop());
+    }
+    this.screenStream = newScreenStream;
+
+    return newScreenStream;
+  }
+
+  /**
+   * Restores original camera video track after screen sharing stops.
+   */
+  public async restoreCameraVideoTrack(): Promise<MediaStream | null> {
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach((t) => t.stop());
+      this.screenStream = null;
+    }
+
+    if (!this.peerConnection) return null;
+
+    const videoSender = this.peerConnection
+      .getSenders()
+      .find((s) => s.track && s.track.kind === 'video');
+
+    if (this.originalCallType === 'video') {
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        const camTrack = camStream.getVideoTracks()[0];
+        if (videoSender && camTrack) {
+          await videoSender.replaceTrack(camTrack);
+        }
+        return camStream;
+      } catch (err) {
+        console.warn('[WebRtcService] Could not restore camera track:', err);
+      }
+    } else {
+      // Voice call: remove video track
+      if (videoSender) {
+        await videoSender.replaceTrack(null);
+      }
+    }
+
+    return null;
+  }
+
+  public async getCallStats(): Promise<CallStats | null> {
+    if (!this.peerConnection) return null;
+    try {
+      const statsReport = await this.peerConnection.getStats();
+      return this.statsMonitor.parseStatsReport(statsReport);
+    } catch {
+      return null;
+    }
   }
 
   public async createOffer(): Promise<RTCSessionDescriptionInit> {
@@ -217,6 +339,7 @@ export class WebRtcService {
     this.callId = null;
     this.targetDeviceId = null;
     this.callbacks = null;
+    this.statsMonitor.reset();
   }
 }
 

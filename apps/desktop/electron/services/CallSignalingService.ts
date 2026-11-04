@@ -155,7 +155,37 @@ export class CallSignalingService extends EventEmitter {
       name: s.name,
       thumbnail: s.thumbnail.toDataURL(),
       display_id: s.display_id,
+      appIcon: s.appIcon ? s.appIcon.toDataURL() : null,
+      type: s.id.startsWith('screen:') ? ('screen' as const) : ('window' as const),
     }));
+  }
+
+  public async startScreenShare(callId: string, sourceName?: string): Promise<void> {
+    const call = this.callRepo.getCallById(callId);
+    const adapter = this.getLanAdapter();
+    if (call && adapter) {
+      const targetPeer = call.callerDeviceId === this.localDeviceId ? call.receiverDeviceId : call.callerDeviceId;
+      await adapter.sendPayload(
+        targetPeer,
+        IpmEventType.SCREEN_SHARE_START,
+        { callId, senderDeviceId: this.localDeviceId, sourceName, isSharing: true },
+        call.conversationId
+      );
+    }
+  }
+
+  public async stopScreenShare(callId: string): Promise<void> {
+    const call = this.callRepo.getCallById(callId);
+    const adapter = this.getLanAdapter();
+    if (call && adapter) {
+      const targetPeer = call.callerDeviceId === this.localDeviceId ? call.receiverDeviceId : call.callerDeviceId;
+      await adapter.sendPayload(
+        targetPeer,
+        IpmEventType.SCREEN_SHARE_STOP,
+        { callId, senderDeviceId: this.localDeviceId, isSharing: false },
+        call.conversationId
+      );
+    }
   }
 
   // ==========================================
@@ -231,6 +261,22 @@ export class CallSignalingService extends EventEmitter {
         const payload = envelope.payload as CallSignalInput;
         if (win && !win.isDestroyed()) {
           win.webContents.send(IpcChannels.EVENT_CALL_SIGNAL, payload);
+        }
+        break;
+      }
+
+      case IpmEventType.SCREEN_SHARE_START: {
+        const payload = envelope.payload as { callId: string; senderDeviceId: string; sourceName?: string };
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(IpcChannels.EVENT_SCREEN_SHARE_STARTED, payload);
+        }
+        break;
+      }
+
+      case IpmEventType.SCREEN_SHARE_STOP: {
+        const payload = envelope.payload as { callId: string; senderDeviceId: string };
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(IpcChannels.EVENT_SCREEN_SHARE_STOPPED, payload);
         }
         break;
       }

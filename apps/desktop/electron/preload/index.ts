@@ -97,6 +97,8 @@ const api: IpcApi = {
   sendCallSignal: (input) => ipcRenderer.invoke(IpcChannels.CALLS_SIGNAL, input),
   getCalls: (conversationId) => ipcRenderer.invoke(IpcChannels.CALLS_LIST, conversationId),
   getDesktopSources: () => ipcRenderer.invoke(IpcChannels.CALLS_GET_SOURCES),
+  startScreenShare: (callId, sourceName) => ipcRenderer.invoke(IpcChannels.CALLS_START_SCREEN_SHARE, { callId, sourceName }),
+  stopScreenShare: (callId) => ipcRenderer.invoke(IpcChannels.CALLS_STOP_SCREEN_SHARE, { callId }),
 
   // Event Listeners
   onNetworkStatusChange: (callback) => {
@@ -183,6 +185,16 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: CallSignalInput) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_CALL_SIGNAL, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_SIGNAL, handler);
+  },
+  onScreenShareStarted: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { callId: string; sourceName?: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_SCREEN_SHARE_STARTED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_SCREEN_SHARE_STARTED, handler);
+  },
+  onScreenShareStopped: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { callId: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_SCREEN_SHARE_STOPPED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_SCREEN_SHARE_STOPPED, handler);
   },
 };
 
