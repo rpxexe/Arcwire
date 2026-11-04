@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "pnpm --filter @ipm/desktop dev",
     "build": "pnpm -r build",
+    "package:dir": "pnpm --filter @ipm/desktop package:dir",
+    "package:win": "pnpm --filter @ipm/desktop package:win",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest"

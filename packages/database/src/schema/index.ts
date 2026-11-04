@@ -70,7 +70,7 @@ export const conversations = sqliteTable('conversations', {
 export const conversationMembers = sqliteTable('conversation_members', {
   id: text('id').primaryKey(),
   conversationId: text('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
-  deviceId: text('device_id').notNull().references(() => devices.id, { onDelete: 'cascade' }),
+  deviceId: text('device_id').notNull(),
   role: text('role').notNull().default('member'), // 'owner' | 'admin' | 'member'
   joinedAt: integer('joined_at').notNull(),
 }, (t) => [
