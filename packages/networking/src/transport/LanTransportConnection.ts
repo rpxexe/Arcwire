@@ -69,17 +69,27 @@ export class LanTransportConnection extends EventEmitter implements TransportCon
     const frameBuf = encodeFrame(message);
 
     return new Promise<void>((resolve, reject) => {
+      let isDone = false;
       const success = this.socket.write(frameBuf, (err) => {
         if (err) {
-          reject(err);
-        } else {
-          resolve();
+          if (!isDone) {
+            isDone = true;
+            reject(err);
+          }
+        } else if (success) {
+          if (!isDone) {
+            isDone = true;
+            resolve();
+          }
         }
       });
 
       if (!success) {
         this.socket.once('drain', () => {
-          // Socket buffer flushed
+          if (!isDone) {
+            isDone = true;
+            resolve();
+          }
         });
       }
     });

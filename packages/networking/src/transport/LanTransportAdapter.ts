@@ -241,6 +241,16 @@ export class LanTransportAdapter extends EventEmitter implements TransportAdapte
   }
 
   public async send(peerId: string, message: NetworkEnvelope): Promise<void> {
+    if (!this.connectionPool.getPeerTarget(peerId) && this.deviceRepo) {
+      const device = this.deviceRepo.getDeviceById(peerId);
+      if (device && device.ipAddress && device.ipAddress !== 'unknown') {
+        this.connectionPool.registerPeerTarget({
+          peerId,
+          ipAddress: device.ipAddress,
+          port: device.tcpPort || DEFAULT_PORTS.TCP_MAIN,
+        });
+      }
+    }
     await this.connectionPool.send(peerId, message);
   }
 

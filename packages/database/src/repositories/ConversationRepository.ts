@@ -58,12 +58,57 @@ export class ConversationRepository {
           .all();
         const unreadCount = Number(unreadRows[0]?.count || 0);
 
-        // 3. Find members
-        const memberRows = db
+        // 3. Find members with automatic self-healing for corrupted direct conversations
+        let memberRows = db
           .select()
           .from(conversationMembers)
           .where(eq(conversationMembers.conversationId, row.id))
           .all();
+
+        if (row.type === 'direct' && memberRows.length < 2) {
+          const allDevs = db.select().from(devices).all();
+          let peerDev = allDevs.find(
+            (d) =>
+              d.id !== localDeviceId &&
+              (row.id.includes(d.id.slice(0, 8)) ||
+                (row.title && d.displayName.toLowerCase() === row.title.toLowerCase()))
+          );
+          if (!peerDev && allDevs.length > 0) {
+            peerDev = allDevs.find((d) => d.id !== localDeviceId);
+          }
+
+          if (localDeviceId && peerDev) {
+            const now = Date.now();
+            db.insert(conversationMembers)
+              .values({
+                id: `cm_${row.id}_${localDeviceId}`,
+                conversationId: row.id,
+                deviceId: localDeviceId,
+                role: 'member',
+                joinedAt: now,
+              })
+              .onConflictDoNothing()
+              .run();
+
+            db.insert(conversationMembers)
+              .values({
+                id: `cm_${row.id}_${peerDev.id}`,
+                conversationId: row.id,
+                deviceId: peerDev.id,
+                role: 'member',
+                joinedAt: now,
+              })
+              .onConflictDoNothing()
+              .run();
+
+            memberRows = db
+              .select()
+              .from(conversationMembers)
+              .where(eq(conversationMembers.conversationId, row.id))
+              .all();
+          }
+        }
+
         const memberDeviceIds = memberRows.map((m) => m.deviceId);
 
         // 4. Resolve title & peer details
@@ -130,21 +175,48 @@ export class ConversationRepository {
       .all()
       .map((r) => r.conversationId);
 
-    if (myConvs.length === 0) return null;
-
-    for (const convId of myConvs) {
-      const conv = db.select().from(conversations).where(eq(conversations.id, convId)).limit(1).all()[0];
-      if (conv && conv.type === 'direct') {
-        const peerMember = db
-          .select()
-          .from(conversationMembers)
-          .where(and(eq(conversationMembers.conversationId, convId), eq(conversationMembers.deviceId, peerDeviceId)))
-          .limit(1)
-          .all()[0];
-        if (peerMember) {
-          return this.getConversationById(convId, localDeviceId, false);
+    if (myConvs.length > 0) {
+      for (const convId of myConvs) {
+        const conv = db.select().from(conversations).where(eq(conversations.id, convId)).limit(1).all()[0];
+        if (conv && conv.type === 'direct') {
+          const peerMember = db
+            .select()
+            .from(conversationMembers)
+            .where(and(eq(conversationMembers.conversationId, convId), eq(conversationMembers.deviceId, peerDeviceId)))
+            .limit(1)
+            .all()[0];
+          if (peerMember) {
+            return this.getConversationById(convId, localDeviceId, false);
+          }
         }
       }
+    }
+
+    // Fallback: check deterministic conversation ID
+    const sorted = [localDeviceId, peerDeviceId].sort();
+    const first = sorted[0] ?? 'a';
+    const second = sorted[1] ?? 'b';
+    const convId = `conv_${first.slice(0, 10)}_${second.slice(0, 10)}`;
+    const existingConv = db.select().from(conversations).where(eq(conversations.id, convId)).limit(1).all()[0];
+    if (existingConv && existingConv.type === 'direct') {
+      const now = Date.now();
+      db.insert(conversationMembers).values({
+        id: `cm_${convId}_${localDeviceId}`,
+        conversationId: convId,
+        deviceId: localDeviceId,
+        role: 'member',
+        joinedAt: now,
+      }).onConflictDoNothing().run();
+
+      db.insert(conversationMembers).values({
+        id: `cm_${convId}_${peerDeviceId}`,
+        conversationId: convId,
+        deviceId: peerDeviceId,
+        role: 'member',
+        joinedAt: now,
+      }).onConflictDoNothing().run();
+
+      return this.getConversationById(convId, localDeviceId, false);
     }
 
     return null;
