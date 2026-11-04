@@ -224,3 +224,4 @@ describe('Private Chat System End-to-End Integration', () => {
     expect(aliceSessionManager.getPrivateConversations()).toHaveLength(1);
   });
 });
+

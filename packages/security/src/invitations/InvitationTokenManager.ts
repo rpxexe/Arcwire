@@ -50,3 +50,4 @@ export class InvitationTokenManager {
     return crypto.createHash('sha256').update(normalized).digest('hex');
   }
 }
+

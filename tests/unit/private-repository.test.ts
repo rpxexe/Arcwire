@@ -257,3 +257,4 @@ describe('PrivateChatRepository & Isolation Rules', () => {
     expect(authResults.some((m) => m.id === 'msg_private_1')).toBe(true);
   });
 });
+

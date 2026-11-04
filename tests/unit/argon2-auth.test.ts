@@ -44,3 +44,4 @@ describe('Argon2Hasher (Argon2id Authentication)', () => {
     expect(isMatch).toBe(false);
   });
 });
+
