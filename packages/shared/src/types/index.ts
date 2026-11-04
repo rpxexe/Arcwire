@@ -28,6 +28,12 @@ import {
   RemoteFolderOperationInput,
   FolderListResponsePayload,
   FolderOperationResponsePayload,
+  CallItem,
+  InitiateCallInput,
+  RespondCallInput,
+  EndCallInput,
+  CallSignalInput,
+  DesktopSourceItem,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -76,6 +82,7 @@ export interface MessageItem {
   readAt?: number | null;
   isEncrypted: boolean;
   replyToId?: string | null;
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 }
 
 export interface ReceiptEventData {
@@ -180,6 +187,15 @@ export interface IpcApi {
   browseRemoteFolder: (input: BrowseRemoteFolderInput) => Promise<FolderListResponsePayload>;
   executeRemoteFolderOp: (input: RemoteFolderOperationInput) => Promise<FolderOperationResponsePayload>;
 
+  // Calling & WebRTC (Phase 6)
+  initiateCall: (input: InitiateCallInput) => Promise<CallItem>;
+  acceptCall: (callId: string) => Promise<void>;
+  rejectCall: (callId: string) => Promise<void>;
+  endCall: (callId: string) => Promise<void>;
+  sendCallSignal: (input: CallSignalInput) => Promise<void>;
+  getCalls: (conversationId?: string) => Promise<CallItem[]>;
+  getDesktopSources: () => Promise<DesktopSourceItem[]>;
+
   // Event Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
   onDeviceDiscovered: (callback: (device: DeviceInfo) => void) => () => void;
@@ -193,6 +209,11 @@ export interface IpcApi {
   onTransferProgress: (callback: (progress: TransferProgressEventData) => void) => () => void;
   onTransferCompleted: (callback: (transfer: TransferItem) => void) => () => void;
   onTransferFailed: (callback: (data: { transferId: string; error: string }) => void) => () => void;
+  onCallIncoming: (callback: (call: CallItem) => void) => () => void;
+  onCallAccepted: (callback: (data: { callId: string }) => void) => () => void;
+  onCallRejected: (callback: (data: { callId: string }) => void) => () => void;
+  onCallEnded: (callback: (data: { callId: string }) => void) => () => void;
+  onCallSignal: (callback: (signal: CallSignalInput) => void) => () => void;
 }
 
 declare global {

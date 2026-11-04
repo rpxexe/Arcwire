@@ -22,6 +22,7 @@ import { useChatStore, ChatFilter } from '../../stores/chatStore';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useProfileStore } from '../../stores/profileStore';
 import { useTransferStore } from '../../stores/transferStore';
+import { useCallStore } from '../../stores/callStore';
 import { CreateGroupModal } from './CreateGroupModal';
 import { NewDirectChatModal } from './NewDirectChatModal';
 import { DirectConnectModal } from '../devices/DirectConnectModal';
@@ -31,6 +32,7 @@ export const ChatsView: React.FC = () => {
   const { profile } = useProfileStore();
   const { devices } = useDeviceStore();
   const { selectAndSendFile } = useTransferStore();
+  const { startCall } = useCallStore();
   const {
     conversations,
     activeConversationId,
@@ -91,8 +93,13 @@ export const ChatsView: React.FC = () => {
   );
 
   // Peer device for direct conversation
-  const peerDevice = activeConv?.peerDeviceId
-    ? devices.find((d) => d.id === activeConv.peerDeviceId)
+  const targetPeerDeviceId =
+    activeConv?.peerDeviceId ||
+    activeConv?.memberDeviceIds?.find(
+      (id) => id !== profile?.id && id !== profile?.deviceId
+    );
+  const peerDevice = targetPeerDeviceId
+    ? devices.find((d) => d.id === targetPeerDeviceId)
     : undefined;
 
   // Resolve device display name helper
@@ -508,16 +515,26 @@ export const ChatsView: React.FC = () => {
               {/* Call & Tool Shortcuts */}
               <div className="flex items-center gap-1">
                 <button
-                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-60 hover:opacity-100"
-                  title="Voice Call (Phase 6)"
-                  disabled
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={targetPeerDeviceId ? 'Start Voice Call' : 'Voice calls available in direct chats'}
+                  disabled={!targetPeerDeviceId}
+                  onClick={() => {
+                    if (targetPeerDeviceId && activeConv) {
+                      startCall(activeConv.id, targetPeerDeviceId, 'voice');
+                    }
+                  }}
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button
-                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-60 hover:opacity-100"
-                  title="Video Call (Phase 7)"
-                  disabled
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={targetPeerDeviceId ? 'Start Video Call' : 'Video calls available in direct chats'}
+                  disabled={!targetPeerDeviceId}
+                  onClick={() => {
+                    if (targetPeerDeviceId && activeConv) {
+                      startCall(activeConv.id, targetPeerDeviceId, 'video');
+                    }
+                  }}
                 >
                   <Video className="w-4 h-4" />
                 </button>

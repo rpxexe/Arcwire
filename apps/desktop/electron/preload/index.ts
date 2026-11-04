@@ -9,6 +9,8 @@ import {
   TypingEventData,
   TransferItem,
   TransferProgressEventData,
+  CallItem,
+  CallSignalInput,
 } from '@ipm/shared';
 
 const api: IpcApi = {
@@ -87,6 +89,15 @@ const api: IpcApi = {
     }
   },
 
+  // Calling & WebRTC (Phase 6)
+  initiateCall: (input) => ipcRenderer.invoke(IpcChannels.CALLS_INITIATE, input),
+  acceptCall: (callId) => ipcRenderer.invoke(IpcChannels.CALLS_ACCEPT, callId),
+  rejectCall: (callId) => ipcRenderer.invoke(IpcChannels.CALLS_REJECT, callId),
+  endCall: (callId) => ipcRenderer.invoke(IpcChannels.CALLS_END, callId),
+  sendCallSignal: (input) => ipcRenderer.invoke(IpcChannels.CALLS_SIGNAL, input),
+  getCalls: (conversationId) => ipcRenderer.invoke(IpcChannels.CALLS_LIST, conversationId),
+  getDesktopSources: () => ipcRenderer.invoke(IpcChannels.CALLS_GET_SOURCES),
+
   // Event Listeners
   onNetworkStatusChange: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { online: boolean; ip?: string }) => callback(data);
@@ -147,6 +158,31 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: { transferId: string; error: string }) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_TRANSFER_FAILED, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_FAILED, handler);
+  },
+  onCallIncoming: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: CallItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CALL_INCOMING, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_INCOMING, handler);
+  },
+  onCallAccepted: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { callId: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CALL_ACCEPTED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_ACCEPTED, handler);
+  },
+  onCallRejected: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { callId: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CALL_REJECTED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_REJECTED, handler);
+  },
+  onCallEnded: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { callId: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CALL_ENDED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_ENDED, handler);
+  },
+  onCallSignal: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: CallSignalInput) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CALL_SIGNAL, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CALL_SIGNAL, handler);
   },
 };
 

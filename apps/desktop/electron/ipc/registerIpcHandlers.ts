@@ -21,6 +21,10 @@ import {
   UpdateSharedFolderInputSchema,
   BrowseRemoteFolderInputSchema,
   RemoteFolderOperationInputSchema,
+  InitiateCallInputSchema,
+  RespondCallInputSchema,
+  EndCallInputSchema,
+  CallSignalInputSchema,
 } from '@ipm/shared';
 import { SystemInfoService } from '../services/SystemInfoService';
 import {
@@ -33,6 +37,7 @@ import {
   PrivateChatRepository,
   TransferRepository,
   SharedFolderRepository,
+  CallRepository,
 } from '@ipm/database';
 import { SecretKeyStore, generateDeviceIdentity, deriveDeviceId } from '@ipm/security';
 import type { LanTransportAdapter } from '@ipm/networking';
@@ -40,6 +45,7 @@ import type { MessagingService } from '@ipm/messaging';
 import type { PrivateSessionManager } from '../services/PrivateSessionManager';
 import type { FileTransferService } from '../services/FileTransferService';
 import type { FolderSharingService } from '../services/FolderSharingService';
+import type { CallSignalingService } from '../services/CallSignalingService';
 
 export interface IpcHandlerDependencies {
   profileRepo: ProfileRepository;
@@ -54,6 +60,8 @@ export interface IpcHandlerDependencies {
   folderRepo: SharedFolderRepository;
   transferService: FileTransferService;
   folderService: FolderSharingService;
+  callRepo: CallRepository;
+  callService: CallSignalingService;
   secretStore: SecretKeyStore;
   getMainWindow: () => BrowserWindow | null;
   getLanAdapter: () => LanTransportAdapter | null;
@@ -74,6 +82,8 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     folderRepo,
     transferService,
     folderService,
+    callRepo,
+    callService,
     secretStore,
     getMainWindow,
     getLanAdapter,
@@ -499,5 +509,38 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.FOLDERS_RENAME_REMOTE_ITEM, async (_event, rawInput: unknown) => {
     const input = RemoteFolderOperationInputSchema.parse(rawInput);
     return folderService.executeRemoteOperation(input.peerDeviceId, input.folderId, 'rename', input.targetPath, input.newPath);
+  });
+  // ==========================================
+  // Calling & WebRTC (Phase 6)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.CALLS_INITIATE, (_event, rawInput: unknown) => {
+    const input = InitiateCallInputSchema.parse(rawInput);
+    return callService.initiateCall(input);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_ACCEPT, (_event, callId: string) => {
+    return callService.acceptCall(callId);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_REJECT, (_event, callId: string) => {
+    return callService.rejectCall(callId);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_END, (_event, callId: string) => {
+    return callService.endCall(callId);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_SIGNAL, (_event, rawInput: unknown) => {
+    const input = CallSignalInputSchema.parse(rawInput);
+    return callService.sendSignal(input);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_LIST, (_event, conversationId?: string) => {
+    return callRepo.listCalls(conversationId);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_GET_SOURCES, async () => {
+    return callService.getDesktopSources();
   });
 }

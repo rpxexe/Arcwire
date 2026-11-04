@@ -6,6 +6,8 @@ import { ProfileModal } from '../features/authentication/ProfileModal';
 import { ChatsView } from '../features/chats/ChatsView';
 import { DevicesView } from '../features/devices/DevicesView';
 import { FilesView } from '../features/files/FilesView';
+import { CallsView } from '../features/calling/CallsView';
+import { CallOverlay } from '../features/calling/CallOverlay';
 import { SettingsView } from '../features/settings/SettingsView';
 import { PrivateUnlockScreen } from '../features/private/PrivateUnlockScreen';
 import { PrivateChatsWorkspace } from '../features/private/PrivateChatsWorkspace';
@@ -13,13 +15,15 @@ import { useNavigationStore } from '../stores/navigationStore';
 import { useProfileStore } from '../stores/profileStore';
 import { useThemeStore } from '../stores/themeStore';
 import { usePrivateChatStore } from '../stores/privateChatStore';
-import { PhoneCall, Loader2 } from 'lucide-react';
+import { useCallStore } from '../stores/callStore';
+import { Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { activeTab } = useNavigationStore();
   const { profile, isLoading, loadProfileAndSystem } = useProfileStore();
   const { initializeTheme } = useThemeStore();
   const { isUnlocked, init: initPrivateStore } = usePrivateChatStore();
+  const { initListeners: initCallListeners } = useCallStore();
 
   useEffect(() => {
     // 1. Initialize Theme from settings
@@ -37,6 +41,13 @@ export const App: React.FC = () => {
 
     // 3. Initialize Private Chat store and listeners
     initPrivateStore();
+
+    // 4. Initialize Calling store listeners
+    const unsubCalls = initCallListeners();
+
+    return () => {
+      unsubCalls();
+    };
   }, []);
 
   if (isLoading) {
@@ -58,20 +69,7 @@ export const App: React.FC = () => {
       case 'files':
         return <FilesView />;
       case 'calls':
-        return (
-          <div className="flex-1 flex items-center justify-center p-8 select-none">
-            <div className="p-8 rounded-2xl bg-card border border-border max-w-md text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                <PhoneCall className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-foreground">LAN WebRTC Voice & Video</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Real-time zero-cloud audio, video, and screen sharing using local TCP signaling (port 45822) and direct
-                LAN peer media connections. (Phase 6-7 module).
-              </p>
-            </div>
-          </div>
-        );
+        return <CallsView />;
       case 'devices':
         return <DevicesView />;
       case 'settings':
@@ -95,6 +93,9 @@ export const App: React.FC = () => {
       {/* Profile & First-Launch Onboarding Modals */}
       <OnboardingModal />
       <ProfileModal />
+
+      {/* Global Active Call & Incoming Prompt Overlay */}
+      <CallOverlay />
     </div>
   );
 };
