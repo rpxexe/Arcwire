@@ -2,23 +2,30 @@ import { create } from 'zustand';
 import {
   CallItem,
   CallType,
-  CallStatus,
-  DesktopSourceItem,
-  DeviceInfo,
   CallSignalInput,
+  DesktopSourceItem,
+  ScreenShareOptions,
+  ScreenSharePreset,
+  CallStats,
 } from '@ipm/shared';
 import { webrtcService } from '../services/webrtcService';
-import { useDeviceStore } from './deviceStore';
 
-interface CallState {
+export interface CallState {
   activeCall: CallItem | null;
   incomingCall: CallItem | null;
-  callStatus: 'idle' | 'ringing' | 'connected' | 'ended';
+  callStatus: 'idle' | 'outgoing-ringing' | 'incoming-ringing' | 'connected' | 'ended';
   callType: CallType;
   durationSeconds: number;
   isMuted: boolean;
   isVideoEnabled: boolean;
   isScreenSharing: boolean;
+  isRemoteScreenSharing: boolean;
+  sharedSourceName: string | null;
+  remoteSourceName: string | null;
+  screenPreset: ScreenSharePreset;
+  isFitToWindow: boolean;
+  stats: CallStats | null;
+  isScreenPickerOpen: boolean;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   desktopSources: DesktopSourceItem[];
@@ -37,14 +44,18 @@ interface CallState {
   endActiveCall: () => Promise<void>;
   toggleMute: () => void;
   toggleVideo: () => void;
-  startScreenSharing: (sourceId: string) => Promise<void>;
+  startScreenSharing: (sourceId: string, options?: Partial<ScreenShareOptions>) => Promise<void>;
+  switchScreenSource: (sourceId: string, options?: Partial<ScreenShareOptions>) => Promise<void>;
   stopScreenSharing: () => Promise<void>;
+  setScreenPickerOpen: (open: boolean) => void;
+  toggleFitToWindow: () => void;
   fetchDesktopSources: () => Promise<void>;
   fetchCallHistory: (conversationId?: string) => Promise<void>;
   initListeners: () => () => void;
 }
 
 let timerInterval: NodeJS.Timeout | null = null;
+let statsInterval: NodeJS.Timeout | null = null;
 
 export const useCallStore = create<CallState>((set, get) => ({
   activeCall: null,
@@ -55,12 +66,22 @@ export const useCallStore = create<CallState>((set, get) => ({
   isMuted: false,
   isVideoEnabled: true,
   isScreenSharing: false,
+  isRemoteScreenSharing: false,
+  sharedSourceName: null,
+  remoteSourceName: null,
+  screenPreset: 'balanced',
+  isFitToWindow: true,
+  stats: null,
+  isScreenPickerOpen: false,
   localStream: null,
   remoteStream: null,
   desktopSources: [],
   callHistory: [],
   isLoading: false,
   error: null,
+
+  setScreenPickerOpen: (open: boolean) => set({ isScreenPickerOpen: open }),
+  toggleFitToWindow: () => set((s) => ({ isFitToWindow: !s.isFitToWindow })),
 
   startCall: async (
     conversationId: string,
@@ -91,29 +112,37 @@ export const useCallStore = create<CallState>((set, get) => ({
                 set((s) => ({ durationSeconds: s.durationSeconds + 1 }));
               }, 1000);
             }
+            if (!statsInterval) {
+              statsInterval = setInterval(async () => {
+                const liveStats = await webrtcService.getCallStats();
+                if (liveStats) set({ stats: liveStats });
+              }, 2000);
+            }
           }
         },
         onCallEnded: () => {
           get().endActiveCall();
         },
+        onScreenShareEnded: () => {
+          get().stopScreenSharing();
+        },
       });
 
-      // Start local audio/video/screen capture
+      // Acquire initial local media
       const stream = await webrtcService.startLocalStream(callType, desktopSourceId);
 
       set({
         activeCall: call,
-        callStatus: 'ringing',
+        callStatus: 'outgoing-ringing',
         callType,
         localStream: stream,
-        durationSeconds: 0,
-        isMuted: false,
-        isVideoEnabled: callType !== 'voice',
         isScreenSharing: callType === 'screen',
+        sharedSourceName: callType === 'screen' ? 'Primary Display' : null,
+        durationSeconds: 0,
         isLoading: false,
       });
     } catch (err: any) {
-      set({ isLoading: false, error: err.message || 'Failed to initiate call' });
+      set({ error: err.message || 'Failed to initiate call', isLoading: false });
       webrtcService.close();
     }
   },
@@ -122,8 +151,10 @@ export const useCallStore = create<CallState>((set, get) => ({
     const { incomingCall } = get();
     if (!incomingCall) return;
 
+    set({ isLoading: true, error: null });
     try {
-      if (!window.api?.acceptCall) throw new Error('Accept call API not available');
+      if (!window.api?.acceptCall) throw new Error('Calling API not available');
+
       await window.api.acceptCall(incomingCall.id);
 
       // Initialize WebRTC
@@ -139,28 +170,38 @@ export const useCallStore = create<CallState>((set, get) => ({
                 set((s) => ({ durationSeconds: s.durationSeconds + 1 }));
               }, 1000);
             }
+            if (!statsInterval) {
+              statsInterval = setInterval(async () => {
+                const liveStats = await webrtcService.getCallStats();
+                if (liveStats) set({ stats: liveStats });
+              }, 2000);
+            }
           }
         },
         onCallEnded: () => {
           get().endActiveCall();
         },
+        onScreenShareEnded: () => {
+          get().stopScreenSharing();
+        },
       });
 
+      // Acquire media based on call type
       const stream = await webrtcService.startLocalStream(incomingCall.callType);
 
       set({
         activeCall: incomingCall,
         incomingCall: null,
-        callStatus: 'ringing',
+        callStatus: 'connected',
         callType: incomingCall.callType,
         localStream: stream,
+        isRemoteScreenSharing: incomingCall.callType === 'screen',
+        remoteSourceName: incomingCall.callType === 'screen' ? 'Remote Screen' : null,
         durationSeconds: 0,
-        isMuted: false,
-        isVideoEnabled: incomingCall.callType !== 'voice',
-        isScreenSharing: incomingCall.callType === 'screen',
+        isLoading: false,
       });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to accept incoming call' });
+      set({ error: err.message || 'Failed to accept call', isLoading: false });
       webrtcService.close();
     }
   },
@@ -175,18 +216,26 @@ export const useCallStore = create<CallState>((set, get) => ({
       }
     } finally {
       set({ incomingCall: null });
+      get().fetchCallHistory();
     }
   },
 
   endActiveCall: async () => {
-    const { activeCall } = get();
+    const { activeCall, isScreenSharing } = get();
 
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    if (statsInterval) {
+      clearInterval(statsInterval);
+      statsInterval = null;
+    }
 
     try {
+      if (activeCall && isScreenSharing && window.api?.stopScreenShare) {
+        await window.api.stopScreenShare(activeCall.id);
+      }
       if (activeCall && window.api?.endCall) {
         await window.api.endCall(activeCall.id);
       }
@@ -202,6 +251,11 @@ export const useCallStore = create<CallState>((set, get) => ({
         isMuted: false,
         isVideoEnabled: true,
         isScreenSharing: false,
+        isRemoteScreenSharing: false,
+        sharedSourceName: null,
+        remoteSourceName: null,
+        isScreenPickerOpen: false,
+        stats: null,
       });
       get().fetchCallHistory();
     }
@@ -219,31 +273,79 @@ export const useCallStore = create<CallState>((set, get) => ({
     set({ isVideoEnabled: nextVideo });
   },
 
-  startScreenSharing: async (sourceId: string) => {
+  startScreenSharing: async (sourceId: string, options?: Partial<ScreenShareOptions>) => {
+    const { activeCall, desktopSources } = get();
     try {
-      const stream = await webrtcService.startLocalStream('screen', sourceId);
-      set({
-        localStream: stream,
-        isScreenSharing: true,
-        callType: 'screen',
+      const source = desktopSources.find((s) => s.id === sourceId);
+      const sourceName = options?.sourceName || source?.name || 'Screen';
+      const preset = options?.preset || 'balanced';
+
+      const screenStream = await webrtcService.replaceVideoTrackWithScreen(sourceId, {
+        sourceId,
+        sourceName,
+        preset,
+        ...options,
       });
-      // Renegotiate with peer
-      await webrtcService.createOffer();
+
+      if (activeCall && window.api?.startScreenShare) {
+        await window.api.startScreenShare(activeCall.id, sourceName);
+      }
+
+      set({
+        localStream: screenStream,
+        isScreenSharing: true,
+        sharedSourceName: sourceName,
+        screenPreset: preset,
+        callType: 'screen',
+        isScreenPickerOpen: false,
+      });
     } catch (err: any) {
       set({ error: err.message || 'Failed to start screen sharing' });
     }
   },
 
-  stopScreenSharing: async () => {
+  switchScreenSource: async (sourceId: string, options?: Partial<ScreenShareOptions>) => {
+    const { activeCall, desktopSources } = get();
     try {
-      const stream = await webrtcService.startLocalStream('video');
-      set({
-        localStream: stream,
-        isScreenSharing: false,
-        callType: 'video',
+      const source = desktopSources.find((s) => s.id === sourceId);
+      const sourceName = options?.sourceName || source?.name || 'Screen';
+
+      const screenStream = await webrtcService.replaceVideoTrackWithScreen(sourceId, {
+        sourceId,
+        sourceName,
+        ...options,
       });
-      // Renegotiate with peer
-      await webrtcService.createOffer();
+
+      if (activeCall && window.api?.startScreenShare) {
+        await window.api.startScreenShare(activeCall.id, sourceName);
+      }
+
+      set({
+        localStream: screenStream,
+        sharedSourceName: sourceName,
+        isScreenPickerOpen: false,
+      });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to switch screen source' });
+    }
+  },
+
+  stopScreenSharing: async () => {
+    const { activeCall } = get();
+    try {
+      if (activeCall && window.api?.stopScreenShare) {
+        await window.api.stopScreenShare(activeCall.id);
+      }
+
+      const restoredStream = await webrtcService.restoreCameraVideoTrack();
+
+      set({
+        localStream: restoredStream,
+        isScreenSharing: false,
+        sharedSourceName: null,
+        callType: restoredStream ? 'video' : 'voice',
+        isScreenPickerOpen: false,
+      });
     } catch (err: any) {
       set({ error: err.message || 'Failed to stop screen sharing' });
     }
@@ -287,6 +389,12 @@ export const useCallStore = create<CallState>((set, get) => ({
           set((s) => ({ durationSeconds: s.durationSeconds + 1 }));
         }, 1000);
       }
+      if (!statsInterval) {
+        statsInterval = setInterval(async () => {
+          const liveStats = await webrtcService.getCallStats();
+          if (liveStats) set({ stats: liveStats });
+        }, 2000);
+      }
       // Create and send SDP Offer
       await webrtcService.createOffer();
     });
@@ -312,6 +420,23 @@ export const useCallStore = create<CallState>((set, get) => ({
       }
     });
 
+    // 6. Remote Screen Share Started
+    const unsubScreenStarted = window.api.onScreenShareStarted?.((data) => {
+      set({
+        isRemoteScreenSharing: true,
+        remoteSourceName: data.sourceName || 'Remote Screen',
+        callType: 'screen',
+      });
+    });
+
+    // 7. Remote Screen Share Stopped
+    const unsubScreenStopped = window.api.onScreenShareStopped?.(() => {
+      set({
+        isRemoteScreenSharing: false,
+        remoteSourceName: null,
+      });
+    });
+
     get().fetchCallHistory();
 
     return () => {
@@ -320,6 +445,16 @@ export const useCallStore = create<CallState>((set, get) => ({
       unsubRejected?.();
       unsubEnded?.();
       unsubSignal?.();
+      unsubScreenStarted?.();
+      unsubScreenStopped?.();
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      if (statsInterval) {
+        clearInterval(statsInterval);
+        statsInterval = null;
+      }
     };
   },
 }));

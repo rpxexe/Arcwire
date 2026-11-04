@@ -543,4 +543,12 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.CALLS_GET_SOURCES, async () => {
     return callService.getDesktopSources();
   });
+
+  ipcMain.handle(IpcChannels.CALLS_START_SCREEN_SHARE, async (_event, { callId, sourceName }: { callId: string; sourceName?: string }) => {
+    return callService.startScreenShare(callId, sourceName);
+  });
+
+  ipcMain.handle(IpcChannels.CALLS_STOP_SCREEN_SHARE, async (_event, { callId }: { callId: string }) => {
+    return callService.stopScreenShare(callId);
+  });
 }

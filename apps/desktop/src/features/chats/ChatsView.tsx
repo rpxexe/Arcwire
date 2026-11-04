@@ -17,6 +17,7 @@ import {
   X,
   Loader2,
   Crown,
+  Monitor,
 } from 'lucide-react';
 import { useChatStore, ChatFilter } from '../../stores/chatStore';
 import { useDeviceStore } from '../../stores/deviceStore';
@@ -537,6 +538,18 @@ export const ChatsView: React.FC = () => {
                   }}
                 >
                   <Video className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={targetPeerDeviceId ? 'Share Screen with Peer' : 'Screen sharing available in direct chats'}
+                  disabled={!targetPeerDeviceId}
+                  onClick={() => {
+                    if (targetPeerDeviceId && activeConv) {
+                      startCall(activeConv.id, targetPeerDeviceId, 'screen');
+                    }
+                  }}
+                >
+                  <Monitor className="w-4 h-4" />
                 </button>
               </div>
             </div>

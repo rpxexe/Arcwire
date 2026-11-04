@@ -25,3 +25,4 @@ describe('LanIceConfig (Pure LAN WebRTC Constraint)', () => {
     expect(LanIceConfig.isHostCandidate(relayCandidate)).toBe(false);
   });
 });
+

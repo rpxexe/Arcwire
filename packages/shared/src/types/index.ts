@@ -34,6 +34,9 @@ import {
   EndCallInput,
   CallSignalInput,
   DesktopSourceItem,
+  ScreenShareOptions,
+  ScreenSharePreset,
+  CallStats,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -195,6 +198,8 @@ export interface IpcApi {
   sendCallSignal: (input: CallSignalInput) => Promise<void>;
   getCalls: (conversationId?: string) => Promise<CallItem[]>;
   getDesktopSources: () => Promise<DesktopSourceItem[]>;
+  startScreenShare: (callId: string, sourceName?: string) => Promise<void>;
+  stopScreenShare: (callId: string) => Promise<void>;
 
   // Event Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
@@ -214,6 +219,8 @@ export interface IpcApi {
   onCallRejected: (callback: (data: { callId: string }) => void) => () => void;
   onCallEnded: (callback: (data: { callId: string }) => void) => () => void;
   onCallSignal: (callback: (signal: CallSignalInput) => void) => () => void;
+  onScreenShareStarted: (callback: (data: { callId: string; sourceName?: string }) => void) => () => void;
+  onScreenShareStopped: (callback: (data: { callId: string }) => void) => () => void;
 }
 
 declare global {

@@ -15,6 +15,8 @@ export interface SignalingEvents {
   callReject: (data: { callId: string; responderDeviceId: string }) => void;
   callEnd: (data: { callId: string; senderDeviceId: string; reason?: string }) => void;
   callSignal: (signal: CallSignalInput) => void;
+  screenShareStart: (data: { callId: string; senderDeviceId: string; sourceName?: string }) => void;
+  screenShareStop: (data: { callId: string; senderDeviceId: string }) => void;
 }
 
 export class WebRtcSignalingManager extends EventEmitter {
@@ -133,6 +135,45 @@ export class WebRtcSignalingManager extends EventEmitter {
   }
 
   /**
+   * Notifies peer that screen sharing has started.
+   */
+  public async sendScreenShareStart(
+    peerDeviceId: string,
+    callId: string,
+    sourceName?: string,
+    conversationId: string = 'global'
+  ): Promise<void> {
+    const adapter = this.getLanAdapter();
+    if (!adapter) return;
+
+    await adapter.sendPayload(
+      peerDeviceId,
+      IpmEventType.SCREEN_SHARE_START,
+      { callId, senderDeviceId: this.localDeviceId, sourceName, isSharing: true },
+      conversationId
+    );
+  }
+
+  /**
+   * Notifies peer that screen sharing has stopped.
+   */
+  public async sendScreenShareStop(
+    peerDeviceId: string,
+    callId: string,
+    conversationId: string = 'global'
+  ): Promise<void> {
+    const adapter = this.getLanAdapter();
+    if (!adapter) return;
+
+    await adapter.sendPayload(
+      peerDeviceId,
+      IpmEventType.SCREEN_SHARE_STOP,
+      { callId, senderDeviceId: this.localDeviceId, isSharing: false },
+      conversationId
+    );
+  }
+
+  /**
    * Routes incoming network envelopes to high-level call events.
    */
   public handleIncomingEnvelope(envelope: NetworkEnvelope): void {
@@ -169,6 +210,18 @@ export class WebRtcSignalingManager extends EventEmitter {
       case IpmEventType.CALL_SIGNAL: {
         const payload = envelope.payload as CallSignalInput;
         this.emit('callSignal', payload);
+        break;
+      }
+
+      case IpmEventType.SCREEN_SHARE_START: {
+        const payload = envelope.payload as { callId: string; senderDeviceId: string; sourceName?: string };
+        this.emit('screenShareStart', payload);
+        break;
+      }
+
+      case IpmEventType.SCREEN_SHARE_STOP: {
+        const payload = envelope.payload as { callId: string; senderDeviceId: string };
+        this.emit('screenShareStop', payload);
         break;
       }
 

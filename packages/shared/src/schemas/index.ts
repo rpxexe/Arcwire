@@ -524,5 +524,36 @@ export const DesktopSourceItemSchema = z.object({
   name: z.string(),
   thumbnail: z.string(),
   display_id: z.string().optional(),
+  appIcon: z.string().nullable().optional(),
+  type: z.enum(['screen', 'window']).default('window'),
 });
 export type DesktopSourceItem = z.infer<typeof DesktopSourceItemSchema>;
+
+export const ScreenSharePresetEnum = z.enum(['smooth', 'crisp', 'balanced']);
+export type ScreenSharePreset = z.infer<typeof ScreenSharePresetEnum>;
+
+export const ScreenShareOptionsSchema = z.object({
+  sourceId: z.string(),
+  sourceName: z.string().optional(),
+  preset: ScreenSharePresetEnum.default('balanced'),
+  withAudio: z.boolean().default(false),
+  maxFrameRate: z.number().int().positive().default(30),
+  contentHint: z.enum(['detail', 'motion', 'text']).default('detail'),
+});
+export type ScreenShareOptions = z.infer<typeof ScreenShareOptionsSchema>;
+
+export const CallStatsSchema = z.object({
+  resolution: z.string(),
+  fps: z.number(),
+  bitrateKbps: z.number(),
+  packetLossPercentage: z.number(),
+  latencyMs: z.number().optional(),
+});
+export type CallStats = z.infer<typeof CallStatsSchema>;
+
+export const ScreenShareSignalPayloadSchema = z.object({
+  callId: z.string(),
+  sourceName: z.string().optional(),
+  isSharing: z.boolean(),
+});
+export type ScreenShareSignalPayload = z.infer<typeof ScreenShareSignalPayloadSchema>;
