@@ -6,16 +6,14 @@ import {
   ShieldCheck,
   Shield,
   Wifi,
-  ExternalLink,
   MessageSquare,
   FileText,
-  Phone,
   Clock,
-  CheckCircle2,
 } from 'lucide-react';
 import { useProfileStore } from '../../stores/profileStore';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useNavigationStore } from '../../stores/navigationStore';
+import { useChatStore } from '../../stores/chatStore';
 import { DirectConnectModal } from './DirectConnectModal';
 import { DeviceInfo } from '@ipm/shared';
 
@@ -23,6 +21,7 @@ export const DevicesView: React.FC = () => {
   const { systemInfo, profile } = useProfileStore();
   const { devices, isScanning, scanLan, toggleTrust, initListeners } = useDeviceStore();
   const { setActiveTab } = useNavigationStore();
+  const { createDirectChat } = useChatStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
@@ -74,6 +73,15 @@ export const DevicesView: React.FC = () => {
     if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleStartChat = async (deviceId: string) => {
+    try {
+      await createDirectChat(deviceId);
+      setActiveTab('chats');
+    } catch {
+      setActiveTab('chats');
+    }
   };
 
   return (
@@ -226,7 +234,7 @@ export const DevicesView: React.FC = () => {
 
                   {/* Quick Action: Message */}
                   <button
-                    onClick={() => setActiveTab('chats')}
+                    onClick={() => handleStartChat(device.id)}
                     className="p-2 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                     title="Send Message"
                   >

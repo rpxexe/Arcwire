@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigationStore, NavTab } from '../stores/navigationStore';
 import { useProfileStore } from '../stores/profileStore';
+import { useChatStore } from '../stores/chatStore';
 
 interface NavItem {
   id: NavTab;
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useNavigationStore();
   const { profile, openProfileModal } = useProfileStore();
+  const { setFilterTab } = useChatStore();
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -57,6 +59,18 @@ export const Sidebar: React.FC = () => {
       .toUpperCase();
   };
 
+  const handleNavClick = (tab: NavTab) => {
+    if (tab === 'groups') {
+      setFilterTab('groups');
+      setActiveTab('chats');
+    } else if (tab === 'chats') {
+      setFilterTab('all');
+      setActiveTab('chats');
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
   return (
     <aside className="w-64 bg-sidebar border-r border-border flex flex-col justify-between select-none">
       {/* Navigation Links */}
@@ -66,12 +80,15 @@ export const Sidebar: React.FC = () => {
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive =
+            activeTab === item.id ||
+            (item.id === 'groups' && activeTab === 'chats' && useChatStore.getState().filterTab === 'groups') ||
+            (item.id === 'chats' && activeTab === 'chats' && useChatStore.getState().filterTab !== 'groups');
 
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-primary text-primary-foreground shadow-sm'

@@ -128,22 +128,106 @@ export const TrustDeviceInputSchema = z.object({
 });
 export type TrustDeviceInput = z.infer<typeof TrustDeviceInputSchema>;
 
-// Messaging Schemas
+// Messaging Schemas (Phase 3)
 export const ChatMessagePayloadSchema = z.object({
   messageId: z.string().uuid(),
   content: z.string(),
   contentType: z.enum(['text', 'file', 'system']).default('text'),
   isEncrypted: z.boolean().default(false),
   sentAt: z.number(),
+  replyToId: z.string().uuid().nullable().optional(),
 });
 export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;
 
 export const MessageReceiptPayloadSchema = z.object({
   messageId: z.string().uuid(),
+  conversationId: z.string().optional(),
   receiptType: z.enum(['ack', 'delivered', 'read']),
   timestamp: z.number(),
 });
 export type MessageReceiptPayload = z.infer<typeof MessageReceiptPayloadSchema>;
+
+export const TypingIndicatorPayloadSchema = z.object({
+  conversationId: z.string(),
+  deviceId: z.string(),
+  isTyping: z.boolean(),
+});
+export type TypingIndicatorPayload = z.infer<typeof TypingIndicatorPayloadSchema>;
+
+// Group Messaging Schemas
+export const GroupCreatePayloadSchema = z.object({
+  groupId: z.string(),
+  name: z.string().min(1).max(100),
+  description: z.string().max(255).optional(),
+  memberDeviceIds: z.array(z.string()),
+  hostDeviceId: z.string(),
+});
+export type GroupCreatePayload = z.infer<typeof GroupCreatePayloadSchema>;
+
+export const GroupJoinPayloadSchema = z.object({
+  groupId: z.string(),
+  deviceId: z.string(),
+  joinedAt: z.number(),
+});
+export type GroupJoinPayload = z.infer<typeof GroupJoinPayloadSchema>;
+
+export const GroupLeavePayloadSchema = z.object({
+  groupId: z.string(),
+  deviceId: z.string(),
+});
+export type GroupLeavePayload = z.infer<typeof GroupLeavePayloadSchema>;
+
+export const GroupMessagePayloadSchema = z.object({
+  groupId: z.string(),
+  messageId: z.string().uuid(),
+  senderId: z.string(),
+  sequence: z.number().int().nonnegative(),
+  content: z.string(),
+  contentType: z.enum(['text', 'file', 'system']).default('text'),
+  sentAt: z.number(),
+});
+export type GroupMessagePayload = z.infer<typeof GroupMessagePayloadSchema>;
+
+export const GroupHostMigratedPayloadSchema = z.object({
+  groupId: z.string(),
+  previousHostDeviceId: z.string(),
+  newHostDeviceId: z.string(),
+  highestSequence: z.number().int().nonnegative(),
+  timestamp: z.number(),
+});
+export type GroupHostMigratedPayload = z.infer<typeof GroupHostMigratedPayloadSchema>;
+
+// Renderer IPC Input Schemas
+export const SendMessageInputSchema = z.object({
+  conversationId: z.string(),
+  content: z.string().min(1, 'Message content cannot be empty'),
+  contentType: z.enum(['text', 'file', 'system']).optional().default('text'),
+  isEncrypted: z.boolean().optional().default(false),
+  replyToId: z.string().nullable().optional(),
+});
+export type SendMessageInput = z.infer<typeof SendMessageInputSchema>;
+
+export const CreateConversationInputSchema = z.object({
+  type: z.enum(['direct', 'group', 'private']),
+  peerDeviceId: z.string().optional(),
+  title: z.string().optional(),
+  memberDeviceIds: z.array(z.string()).optional(),
+  description: z.string().optional(),
+});
+export type CreateConversationInput = z.infer<typeof CreateConversationInputSchema>;
+
+export const CreateGroupInputSchema = z.object({
+  name: z.string().min(1, 'Group name required').max(100),
+  description: z.string().max(255).optional(),
+  memberDeviceIds: z.array(z.string()).default([]),
+});
+export type CreateGroupInput = z.infer<typeof CreateGroupInputSchema>;
+
+export const SearchMessagesInputSchema = z.object({
+  query: z.string().min(1),
+  conversationId: z.string().optional(),
+});
+export type SearchMessagesInput = z.infer<typeof SearchMessagesInputSchema>;
 
 // File Streaming Schemas
 export const FileOfferPayloadSchema = z.object({

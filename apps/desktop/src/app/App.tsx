@@ -10,7 +10,7 @@ import { SettingsView } from '../features/settings/SettingsView';
 import { useNavigationStore } from '../stores/navigationStore';
 import { useProfileStore } from '../stores/profileStore';
 import { useThemeStore } from '../stores/themeStore';
-import { Shield, PhoneCall, Users, Loader2 } from 'lucide-react';
+import { Shield, PhoneCall, Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { activeTab } = useNavigationStore();
@@ -44,22 +44,8 @@ export const App: React.FC = () => {
   const renderActiveView = () => {
     switch (activeTab) {
       case 'chats':
-        return <ChatsView />;
       case 'groups':
-        return (
-          <div className="flex-1 flex items-center justify-center p-8 select-none">
-            <div className="p-8 rounded-2xl bg-card border border-border max-w-md text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-foreground">Distributed LAN Groups</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Group conversations coordinate dynamically through temporary group hosts with automatic host-loss
-                detection and deterministic failover election. (Phase 3 module).
-              </p>
-            </div>
-          </div>
-        );
+        return <ChatsView />;
       case 'private':
         return (
           <div className="flex-1 flex items-center justify-center p-8 select-none">
