@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { app, BrowserWindow, safeStorage, Notification } from 'electron';
 import { AppPaths } from '../services/AppPaths';
 import { WindowManager } from '../services/WindowManager';
@@ -24,6 +26,38 @@ import { PrivateSessionManager } from '../services/PrivateSessionManager';
 import { FileTransferService } from '../services/FileTransferService';
 import { FolderSharingService } from '../services/FolderSharingService';
 import { CallSignalingService } from '../services/CallSignalingService';
+
+function logCrash(type: string, error: unknown): void {
+  try {
+    let logsDir: string;
+    try {
+      logsDir = AppPaths.get().logs;
+    } catch {
+      const appData = process.env.APPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library/Application Support') : path.join(process.env.HOME || '', '.config'));
+      logsDir = path.join(appData, 'IPMessenger', 'logs');
+    }
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const crashFile = path.join(logsDir, 'crash.log');
+    const timestamp = new Date().toISOString();
+    const stack = error instanceof Error ? (error.stack || error.message) : String(error);
+    const entry = `[${timestamp}] [${type}] ${stack}\n\n`;
+    fs.appendFileSync(crashFile, entry, 'utf8');
+  } catch (e) {
+    console.error('[Main] Failed to write to crash log:', e);
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught Exception:', error);
+  logCrash('UNCAUGHT_EXCEPTION', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled Rejection:', reason);
+  logCrash('UNHANDLED_REJECTION', reason);
+});
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -247,8 +281,31 @@ if (!gotTheLock) {
 
     // 2. Initialize Database & Repositories
     dbService = DatabaseService.initialize({ dbPath: paths.databaseFile });
+    // Run SQLite PRAGMA integrity check on startup
+    try {
+      const integrity = dbService.getRawSqlite().pragma('integrity_check') as Array<{ integrity_check: string }>;
+      const isOk = Array.isArray(integrity) && integrity.length > 0 && integrity[0]?.integrity_check === 'ok';
+      if (!isOk) {
+        console.error('[Database] SQLite integrity check failed:', integrity);
+        logCrash('SQLITE_CORRUPTION', new Error(`Database integrity check failed: ${JSON.stringify(integrity)}`));
+      } else {
+        console.log('[Database] SQLite PRAGMA integrity_check passed (ok).');
+      }
+    } catch (err) {
+      console.error('[Database] Error running integrity check:', err);
+    }
     profileRepo = new ProfileRepository(dbService);
     settingsRepo = new SettingsRepository(dbService);
+    // Configure Windows login auto-start based on user preference
+    const initialSettings = settingsRepo.getSettings();
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: initialSettings.startWithWindows,
+        args: ['--hidden'],
+      });
+    } catch (err) {
+      console.error('[Main] Failed to configure initial login item settings:', err);
+    }
     deviceRepo = new DeviceRepository(dbService);
     conversationRepo = new ConversationRepository(dbService);
     messageRepo = new MessageRepository(dbService);

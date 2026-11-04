@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, dialog, shell } from 'electron';
+import { app, ipcMain, BrowserWindow, dialog, shell } from 'electron';
 import {
   IpcChannels,
   ProfileCreateSchema,
@@ -184,6 +184,16 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
 
   ipcMain.handle(IpcChannels.SETTINGS_UPDATE, (_event, rawInput: unknown) => {
     const validated = AppSettingsSchema.partial().parse(rawInput);
+    if (validated.startWithWindows !== undefined) {
+      try {
+        app.setLoginItemSettings({
+          openAtLogin: validated.startWithWindows,
+          args: ['--hidden'],
+        });
+      } catch (err) {
+        console.error('[Main] Failed to update login item settings:', err);
+      }
+    }
     return settingsRepo.updateSettings(validated);
   });
 

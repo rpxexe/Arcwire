@@ -1,0 +1,29 @@
+appId: com.arcwire.messenger
+productName: Arcwire
+copyright: Copyright © 2026 Arcwire Team
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**/*
+  - resources/**/*
+  - package.json
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+  - node_modules/argon2/**/*
+  - out/main/chunks/*.node
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Arcwire
+  uninstallDisplayName: Arcwire LAN Messenger
+  runAfterFinish: true

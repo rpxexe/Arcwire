@@ -65,8 +65,17 @@ export class DatabaseService {
           return syncDb.exec(sql);
         },
         pragma(sql: string, opts?: { simple?: boolean }) {
-          if (opts && opts.simple) return 'wal';
-          return syncDb.exec('PRAGMA ' + sql);
+          if (sql.includes('=')) {
+            syncDb.exec('PRAGMA ' + sql);
+            return;
+          }
+          const stmt = syncDb.prepare('PRAGMA ' + sql);
+          if (opts && opts.simple) {
+            const row = stmt.get() as Record<string, any> | undefined;
+            if (!row) return undefined;
+            return Object.values(row)[0];
+          }
+          return stmt.all();
         },
         transaction(fn: any) {
           return (...args: any[]) => {
