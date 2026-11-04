@@ -48,6 +48,7 @@ export const ChatsView: React.FC = () => {
     isDirectChatModalOpen,
     fetchConversations,
     selectConversation,
+    createDirectChat,
     sendMessage,
     sendTyping,
     searchMessages,
@@ -137,6 +138,17 @@ export const ChatsView: React.FC = () => {
 
     return true;
   });
+
+  const matchingLanDevices = filterSearch.trim()
+    ? devices.filter(
+        (d) =>
+          d.id !== profile?.id &&
+          d.id !== profile?.deviceId &&
+          (d.displayName.toLowerCase().includes(filterSearch.toLowerCase()) ||
+            d.hostname.toLowerCase().includes(filterSearch.toLowerCase()) ||
+            d.ipAddress.includes(filterSearch))
+      )
+    : [];
 
   // Handle typing input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -347,6 +359,42 @@ export const ChatsView: React.FC = () => {
 
         {/* Conversation Items List */}
         <div className="flex-1 overflow-y-auto divide-y divide-border/30">
+          {/* LAN Peers matching username or IP search */}
+          {matchingLanDevices.length > 0 && (
+            <div className="p-2 border-b border-border bg-primary/5">
+              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>LAN Peers ({matchingLanDevices.length})</span>
+                <span className="text-[10px] text-primary font-normal">Click Chat to message</span>
+              </div>
+              <div className="space-y-1 mt-1">
+                {matchingLanDevices.map((d) => (
+                  <div
+                    key={d.id}
+                    className="p-2 rounded-xl bg-card hover:bg-muted/60 border border-border/60 flex items-center justify-between gap-2 shadow-sm transition-all"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        {d.displayName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-foreground truncate">{d.displayName}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{d.ipAddress} • {d.hostname}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await createDirectChat(d.id);
+                        setFilterSearch('');
+                      }}
+                      className="px-3 py-1 text-xs font-semibold rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shrink-0 transition-colors shadow-sm"
+                    >
+                      Chat
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {isLoadingConversations && conversations.length === 0 ? (
             <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
               <Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" />

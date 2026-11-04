@@ -214,6 +214,22 @@ export class ConversationRepository {
       .run();
 
     for (const devId of memberDeviceIds) {
+      const existingDev = db.select({ id: devices.id }).from(devices).where(eq(devices.id, devId)).limit(1).all();
+      if (existingDev.length === 0) {
+        db.insert(devices)
+          .values({
+            id: devId,
+            publicKey: '',
+            displayName: title || 'LAN Peer',
+            hostname: 'lan-peer',
+            lastSeen: now,
+            status: 'online',
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .run();
+      }
       db.insert(conversationMembers)
         .values({
           id: `cm_${id}_${devId}`,

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { DatabaseService } from '../connection';
-import { profiles } from '../schema/index';
+import { profiles, devices } from '../schema/index';
 import type { Profile, ProfileCreateInput, ProfileUpdateInput } from '@ipm/shared';
 
 export class ProfileRepository {
@@ -18,6 +18,28 @@ export class ProfileRepository {
     }
     const row = result[0];
     if (!row) return null;
+    db.insert(devices)
+      .values({
+        id: row.deviceId,
+        publicKey: row.publicKey,
+        displayName: row.displayName,
+        hostname: row.computerName,
+        lastSeen: Date.now(),
+        status: 'online',
+        createdAt: row.createdAt,
+        updatedAt: Date.now(),
+      })
+      .onConflictDoUpdate({
+        target: devices.id,
+        set: {
+          displayName: row.displayName,
+          hostname: row.computerName,
+          lastSeen: Date.now(),
+          status: 'online',
+          updatedAt: Date.now(),
+        },
+      })
+      .run();
     return {
       id: row.id,
       deviceId: row.deviceId,

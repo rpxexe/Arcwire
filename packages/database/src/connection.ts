@@ -197,7 +197,7 @@ export class DatabaseService {
       CREATE TABLE IF NOT EXISTS conversation_members (
         id TEXT PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'member',
         joined_at INTEGER NOT NULL,
         UNIQUE(conversation_id, device_id)

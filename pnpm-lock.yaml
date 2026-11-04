@@ -41,6 +41,9 @@ importers:
       '@ipm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@node-rs/argon2':
+        specifier: ^2.2.2
+        version: 2.2.2
       better-sqlite3:
         specifier: ^11.8.1
         version: 11.10.0

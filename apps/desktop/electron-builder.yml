@@ -11,6 +11,7 @@ files:
 asar: true
 asarUnpack:
   - node_modules/better-sqlite3/**/*
+  - node_modules/@node-rs/**/*
   - node_modules/argon2/**/*
   - out/main/chunks/*.node
 win:

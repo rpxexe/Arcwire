@@ -251,7 +251,23 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.CONVERSATIONS_CREATE_DIRECT, (_event, peerDeviceId: string) => {
     const profile = profileRepo.getProfile();
     if (!profile) throw new Error('Profile required to create conversation');
+    deviceRepo.upsertDevice({
+      id: profile.deviceId,
+      publicKey: profile.publicKey,
+      displayName: profile.displayName,
+      hostname: profile.computerName,
+      status: 'online',
+    });
     const peer = deviceRepo.getDeviceById(peerDeviceId);
+    if (!peer) {
+      deviceRepo.upsertDevice({
+        id: peerDeviceId,
+        publicKey: '',
+        displayName: 'Direct Chat',
+        hostname: 'lan-peer',
+        status: 'online',
+      });
+    }
     return conversationRepo.getOrCreateDirectConversation(
       profile.deviceId,
       peerDeviceId,
