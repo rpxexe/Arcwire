@@ -464,3 +464,65 @@ export const FolderOperationResponsePayloadSchema = z.object({
   error: z.string().optional(),
 });
 export type FolderOperationResponsePayload = z.infer<typeof FolderOperationResponsePayloadSchema>;
+
+// Phase 6: WebRTC Voice Calls, Video Calls & Screen Sharing
+export const CallTypeEnum = z.enum(['voice', 'video', 'screen']);
+export type CallType = z.infer<typeof CallTypeEnum>;
+
+export const CallStatusEnum = z.enum([
+  'ringing',
+  'ongoing',
+  'completed',
+  'missed',
+  'rejected',
+  'failed',
+]);
+export type CallStatus = z.infer<typeof CallStatusEnum>;
+
+export const CallItemSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  callerDeviceId: z.string(),
+  receiverDeviceId: z.string(),
+  callType: CallTypeEnum,
+  status: CallStatusEnum,
+  startedAt: z.number(),
+  endedAt: z.number().nullable().optional(),
+  durationSeconds: z.number().int().nonnegative().default(0),
+});
+export type CallItem = z.infer<typeof CallItemSchema>;
+
+export const InitiateCallInputSchema = z.object({
+  conversationId: z.string(),
+  receiverDeviceId: z.string(),
+  callType: CallTypeEnum.default('voice'),
+});
+export type InitiateCallInput = z.infer<typeof InitiateCallInputSchema>;
+
+export const RespondCallInputSchema = z.object({
+  callId: z.string(),
+  action: z.enum(['accept', 'reject']),
+});
+export type RespondCallInput = z.infer<typeof RespondCallInputSchema>;
+
+export const EndCallInputSchema = z.object({
+  callId: z.string(),
+  reason: z.string().optional(),
+});
+export type EndCallInput = z.infer<typeof EndCallInputSchema>;
+
+export const CallSignalInputSchema = z.object({
+  callId: z.string(),
+  targetDeviceId: z.string(),
+  signalType: z.enum(['offer', 'answer', 'ice-candidate']),
+  data: z.any(),
+});
+export type CallSignalInput = z.infer<typeof CallSignalInputSchema>;
+
+export const DesktopSourceItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  thumbnail: z.string(),
+  display_id: z.string().optional(),
+});
+export type DesktopSourceItem = z.infer<typeof DesktopSourceItemSchema>;

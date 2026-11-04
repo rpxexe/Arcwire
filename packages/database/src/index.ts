@@ -9,3 +9,4 @@ export * from './repositories/GroupRepository';
 export * from './repositories/PrivateChatRepository';
 export * from './repositories/TransferRepository';
 export * from './repositories/SharedFolderRepository';
+export * from './repositories/CallRepository';

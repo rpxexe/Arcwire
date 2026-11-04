@@ -14,6 +14,7 @@ import {
   PrivateChatRepository,
   TransferRepository,
   SharedFolderRepository,
+  CallRepository,
 } from '@ipm/database';
 import { SecretKeyStore } from '@ipm/security';
 import { LanTransportAdapter } from '@ipm/networking';
@@ -22,6 +23,7 @@ import { DEFAULT_PORTS, IpcChannels, IpmEventType } from '@ipm/shared';
 import { PrivateSessionManager } from '../services/PrivateSessionManager';
 import { FileTransferService } from '../services/FileTransferService';
 import { FolderSharingService } from '../services/FolderSharingService';
+import { CallSignalingService } from '../services/CallSignalingService';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -41,6 +43,8 @@ if (!gotTheLock) {
   let privateSession: PrivateSessionManager | null = null;
   let transferService: FileTransferService | null = null;
   let folderService: FolderSharingService | null = null;
+  let callRepo: CallRepository | null = null;
+  let callService: CallSignalingService | null = null;
   let secretStore: SecretKeyStore | null = null;
   let lanAdapter: LanTransportAdapter | null = null;
   let messagingService: MessagingService | null = null;
@@ -81,6 +85,9 @@ if (!gotTheLock) {
     }
     if (folderService) {
       folderService.updateLocalDeviceId(profile.deviceId);
+    }
+    if (callService) {
+      callService.updateLocalDeviceId(profile.deviceId);
     }
 
     lanAdapter.on('deviceDiscovered', (device) => {
@@ -132,6 +139,16 @@ if (!gotTheLock) {
               await folderService.handleIncomingEnvelope(envelope);
             }
             break;
+          case IpmEventType.CALL_REQUEST:
+          case IpmEventType.CALL_ACCEPT:
+          case IpmEventType.CALL_REJECT:
+          case IpmEventType.CALL_END:
+          case IpmEventType.CALL_SIGNAL:
+            if (callService) {
+              await callService.handleIncomingEnvelope(envelope);
+            }
+            break;
+
 
           default:
             break;
@@ -239,6 +256,7 @@ if (!gotTheLock) {
     privateRepo = new PrivateChatRepository(dbService);
     transferRepo = new TransferRepository(dbService);
     folderRepo = new SharedFolderRepository(dbService);
+    callRepo = new CallRepository(dbService);
 
     // 3. Initialize DPAPI Key Store
     secretStore = new SecretKeyStore({
@@ -264,6 +282,14 @@ if (!gotTheLock) {
       getLanAdapter: () => lanAdapter,
     });
 
+    callService = new CallSignalingService({
+      localDeviceId: localProfile?.deviceId ?? '',
+      callRepo,
+      settingsRepo,
+      getLanAdapter: () => lanAdapter,
+      getMainWindow: () => windowManager.getMainWindow(),
+    });
+
     // 5. Initialize Window Manager
     const windowManager = WindowManager.getInstance();
     windowManager.setSettingsRepository(settingsRepo);
@@ -287,6 +313,8 @@ if (!gotTheLock) {
       folderRepo,
       transferService,
       folderService,
+      callRepo,
+      callService,
       secretStore,
       getMainWindow: () => windowManager.getMainWindow(),
       getLanAdapter: () => lanAdapter,
@@ -312,6 +340,9 @@ if (!gotTheLock) {
       }
       if (folderService) {
         folderService.destroy();
+      }
+      if (callService) {
+        callService.destroy();
       }
       if (messagingService) {
         messagingService.destroy();
@@ -350,6 +381,10 @@ if (!gotTheLock) {
     if (folderService) {
       folderService.destroy();
       folderService = null;
+    }
+    if (callService) {
+      callService.destroy();
+      callService = null;
     }
     if (messagingService) {
       messagingService.destroy();

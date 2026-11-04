@@ -49,7 +49,7 @@ export enum IpmEventType {
   FOLDER_MODIFY = 'FOLDER_MODIFY',
   FOLDER_OPERATION_RESPONSE = 'FOLDER_OPERATION_RESPONSE',
 
-  // Calling & WebRTC Signaling
+  // Calling & WebRTC Signaling (Phase 6)
   CALL_REQUEST = 'CALL_REQUEST',
   CALL_ACCEPT = 'CALL_ACCEPT',
   CALL_REJECT = 'CALL_REJECT',
@@ -91,11 +91,13 @@ export enum IpcChannels {
   CONVERSATIONS_CREATE_GROUP = 'conversations:create-group',
   MESSAGES_LIST = 'messages:list',
   MESSAGES_SEND = 'messages:send',
+  MESSAGES_SEND_ACK = 'messages:send-ack',
+  MESSAGES_SEND_DELIVERED = 'messages:send-delivered',
   MESSAGES_SEND_READ = 'messages:send-read',
   MESSAGES_SEND_TYPING = 'messages:send-typing',
   MESSAGES_SEARCH = 'messages:search',
 
-  // Private Chat (Phase 4)
+  // Private Chat System (Phase 4)
   PRIVATE_STATUS = 'private:status',
   PRIVATE_SETUP_CREDENTIAL = 'private:setup-credential',
   PRIVATE_UNLOCK = 'private:unlock',
@@ -103,7 +105,6 @@ export enum IpcChannels {
   PRIVATE_CONVERSATIONS_LIST = 'private:conversations-list',
   PRIVATE_CONVERSATIONS_CREATE = 'private:conversations-create',
   PRIVATE_INVITATION_CREATE = 'private:invitation-create',
-  PRIVATE_INVITATION_VERIFY = 'private:invitation-verify',
   PRIVATE_INVITATION_REDEEM = 'private:invitation-redeem',
   PRIVATE_INVITATIONS_LIST = 'private:invitations-list',
   PRIVATE_INVITATION_REVOKE = 'private:invitation-revoke',
@@ -132,6 +133,15 @@ export enum IpcChannels {
   FOLDERS_DELETE_REMOTE_ITEM = 'folders:delete-remote-item',
   FOLDERS_RENAME_REMOTE_ITEM = 'folders:rename-remote-item',
 
+  // Calling & WebRTC Signaling (Phase 6)
+  CALLS_INITIATE = 'calls:initiate',
+  CALLS_ACCEPT = 'calls:accept',
+  CALLS_REJECT = 'calls:reject',
+  CALLS_END = 'calls:end',
+  CALLS_SIGNAL = 'calls:signal',
+  CALLS_LIST = 'calls:list',
+  CALLS_GET_SOURCES = 'calls:get-sources',
+
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
@@ -146,4 +156,9 @@ export enum IpcChannels {
   EVENT_TRANSFER_COMPLETED = 'event:transfer-completed',
   EVENT_TRANSFER_FAILED = 'event:transfer-failed',
   EVENT_TRANSFER_CANCELLED = 'event:transfer-cancelled',
+  EVENT_CALL_INCOMING = 'event:call-incoming',
+  EVENT_CALL_ACCEPTED = 'event:call-accepted',
+  EVENT_CALL_REJECTED = 'event:call-rejected',
+  EVENT_CALL_ENDED = 'event:call-ended',
+  EVENT_CALL_SIGNAL = 'event:call-signal',
 }
