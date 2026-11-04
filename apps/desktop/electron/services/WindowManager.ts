@@ -65,8 +65,12 @@ export class WindowManager {
     // Load dev URL or built index.html
     if (process.env['ELECTRON_RENDERER_URL']) {
       this.mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+      this.mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
       this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+      if (process.argv.includes('--dev')) {
+        this.mainWindow.webContents.openDevTools({ mode: 'detach' });
+      }
     }
 
     return this.mainWindow;
@@ -79,19 +83,20 @@ export class WindowManager {
   private setupSecurityGuards(window: BrowserWindow): void {
     // 1. Block unauthorized window opens & navigate external links safely
     window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('https://')) {
+      if (url.startsWith('https://') || url.startsWith('http://')) {
         shell.openExternal(url);
       }
       return { action: 'deny' };
     });
 
     window.webContents.on('will-navigate', (event, url) => {
-      const allowedOrigins = [process.env['ELECTRON_RENDERER_URL'] || ''];
-      if (!allowedOrigins.some((origin) => origin && url.startsWith(origin))) {
-        event.preventDefault();
-        if (url.startsWith('https://')) {
-          shell.openExternal(url);
-        }
+      if (url.startsWith('file://')) return;
+      const devUrl = process.env['ELECTRON_RENDERER_URL'];
+      if (devUrl && url.startsWith(devUrl)) return;
+
+      event.preventDefault();
+      if (url.startsWith('https://') || url.startsWith('http://')) {
+        shell.openExternal(url);
       }
     });
 
