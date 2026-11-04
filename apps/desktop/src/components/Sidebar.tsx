@@ -8,10 +8,12 @@ import {
   Laptop,
   Settings,
   Lock,
+  Unlock,
 } from 'lucide-react';
 import { useNavigationStore, NavTab } from '../stores/navigationStore';
 import { useProfileStore } from '../stores/profileStore';
 import { useChatStore } from '../stores/chatStore';
+import { usePrivateChatStore } from '../stores/privateChatStore';
 
 interface NavItem {
   id: NavTab;
@@ -21,20 +23,27 @@ interface NavItem {
   isLocked?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { id: 'chats', label: 'All Chats', icon: MessageSquare },
-  { id: 'groups', label: 'Groups', icon: Users },
-  { id: 'private', label: 'Private Chats', icon: Shield, badge: 'Locked', isLocked: true },
-  { id: 'files', label: 'File Sharing', icon: FolderSync },
-  { id: 'calls', label: 'Calls', icon: PhoneCall },
-  { id: 'devices', label: 'Devices', icon: Laptop },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
-
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useNavigationStore();
   const { profile, openProfileModal } = useProfileStore();
   const { setFilterTab } = useChatStore();
+  const { isUnlocked } = usePrivateChatStore();
+
+  const navItems: NavItem[] = [
+    { id: 'chats', label: 'All Chats', icon: MessageSquare },
+    { id: 'groups', label: 'Groups', icon: Users },
+    {
+      id: 'private',
+      label: 'Private Chats',
+      icon: Shield,
+      badge: isUnlocked ? 'Unlocked' : 'Locked',
+      isLocked: !isUnlocked,
+    },
+    { id: 'files', label: 'File Sharing', icon: FolderSync },
+    { id: 'calls', label: 'Calls', icon: PhoneCall },
+    { id: 'devices', label: 'Devices', icon: Laptop },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -104,10 +113,12 @@ export const Sidebar: React.FC = () => {
                   className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                     isActive
                       ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : item.id === 'private' && isUnlocked
+                      ? 'bg-emerald-500/10 text-emerald-500'
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  {item.isLocked && <Lock className="w-2.5 h-2.5" />}
+                  {item.id === 'private' && (isUnlocked ? <Unlock className="w-2.5 h-2.5 text-emerald-500" /> : <Lock className="w-2.5 h-2.5" />)}
                   {item.badge}
                 </span>
               )}
@@ -120,7 +131,7 @@ export const Sidebar: React.FC = () => {
       <div className="p-3 border-t border-border bg-sidebar/50">
         <button
           onClick={openProfileModal}
-          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors text-left group"
+          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors text-left group cursor-pointer"
         >
           <div className="relative flex-shrink-0">
             <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-semibold text-primary text-xs">
@@ -133,12 +144,12 @@ export const Sidebar: React.FC = () => {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-              {profile?.displayName || 'Loading...'}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              @{profile?.username || 'user'}
-            </p>
+            <div className="text-sm font-semibold text-sidebar-foreground truncate group-hover:text-primary transition-colors">
+              {profile?.displayName || 'Set Up Profile'}
+            </div>
+            <div className="text-[11px] text-muted-foreground truncate">
+              {profile ? `@${profile.username}` : 'Click to configure'}
+            </div>
           </div>
         </button>
       </div>

@@ -1,6 +1,6 @@
-import { eq, asc, desc, and, ne, isNull, like, sql } from 'drizzle-orm';
+import { eq, asc, desc, and, ne, isNull, like, sql, inArray } from 'drizzle-orm';
 import { DatabaseService } from '../connection';
-import { messages, messageReceipts } from '../schema/index';
+import { messages, messageReceipts, conversations } from '../schema/index';
 import type { MessageItem } from '@ipm/shared';
 
 export class MessageRepository {
@@ -10,36 +10,7 @@ export class MessageRepository {
     this.dbService = dbService;
   }
 
-  public getMessages(conversationId: string, limit: number = 100): MessageItem[] {
-    const db = this.dbService.getDb();
-    const rows = db
-      .select()
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(asc(messages.sequence))
-      .limit(limit)
-      .all();
-
-    return rows.map((r) => ({
-      id: r.id,
-      conversationId: r.conversationId,
-      senderId: r.senderId,
-      sequence: r.sequence,
-      content: r.content,
-      contentType: r.contentType as MessageItem['contentType'],
-      deliveryStatus: r.deliveryStatus as MessageItem['deliveryStatus'],
-      sentAt: r.sentAt,
-      deliveredAt: r.deliveredAt,
-      readAt: r.readAt,
-      isEncrypted: Boolean(r.isEncrypted),
-    }));
-  }
-
-  public getMessageById(id: string): MessageItem | null {
-    const db = this.dbService.getDb();
-    const rows = db.select().from(messages).where(eq(messages.id, id)).limit(1).all();
-    if (rows.length === 0 || !rows[0]) return null;
-    const r = rows[0];
+  private mapMessageRow(r: typeof messages.$inferSelect): MessageItem {
     return {
       id: r.id,
       conversationId: r.conversationId,
@@ -53,6 +24,26 @@ export class MessageRepository {
       readAt: r.readAt,
       isEncrypted: Boolean(r.isEncrypted),
     };
+  }
+
+  public getMessages(conversationId: string, limit: number = 100): MessageItem[] {
+    const db = this.dbService.getDb();
+    const rows = db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.sequence))
+      .limit(limit)
+      .all();
+
+    return rows.map((r) => this.mapMessageRow(r));
+  }
+
+  public getMessageById(id: string): MessageItem | null {
+    const db = this.dbService.getDb();
+    const rows = db.select().from(messages).where(eq(messages.id, id)).limit(1).all();
+    if (rows.length === 0 || !rows[0]) return null;
+    return this.mapMessageRow(rows[0]);
   }
 
   public hasMessage(id: string): boolean {
@@ -199,35 +190,66 @@ export class MessageRepository {
     }
   }
 
-  public searchMessages(query: string, conversationId?: string): MessageItem[] {
+  public searchMessages(query: string, conversationId?: string, includePrivate: boolean = false): MessageItem[] {
     const db = this.dbService.getDb();
     const term = `%${query}%`;
 
-    let whereClause = like(messages.content, term);
     if (conversationId) {
-      whereClause = and(eq(messages.conversationId, conversationId), like(messages.content, term)) as any;
+      if (!includePrivate) {
+        const conv = db
+          .select({ type: conversations.type })
+          .from(conversations)
+          .where(eq(conversations.id, conversationId))
+          .limit(1)
+          .all()[0];
+        if (conv?.type === 'private') {
+          return [];
+        }
+      }
+
+      const rows = db
+        .select()
+        .from(messages)
+        .where(and(eq(messages.conversationId, conversationId), like(messages.content, term)))
+        .orderBy(desc(messages.sentAt))
+        .limit(50)
+        .all();
+
+      return rows.map((r) => this.mapMessageRow(r));
+    }
+
+    // Global search across conversations
+    if (includePrivate) {
+      const rows = db
+        .select()
+        .from(messages)
+        .where(like(messages.content, term))
+        .orderBy(desc(messages.sentAt))
+        .limit(50)
+        .all();
+      return rows.map((r) => this.mapMessageRow(r));
+    }
+
+    // Exclude messages belonging to private conversations
+    const nonPrivateConvIds = db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(ne(conversations.type, 'private'))
+      .all()
+      .map((c) => c.id);
+
+    if (nonPrivateConvIds.length === 0) {
+      return [];
     }
 
     const rows = db
       .select()
       .from(messages)
-      .where(whereClause)
+      .where(and(inArray(messages.conversationId, nonPrivateConvIds), like(messages.content, term)))
       .orderBy(desc(messages.sentAt))
       .limit(50)
       .all();
 
-    return rows.map((r) => ({
-      id: r.id,
-      conversationId: r.conversationId,
-      senderId: r.senderId,
-      sequence: r.sequence,
-      content: r.content,
-      contentType: r.contentType as MessageItem['contentType'],
-      deliveryStatus: r.deliveryStatus as MessageItem['deliveryStatus'],
-      sentAt: r.sentAt,
-      deliveredAt: r.deliveredAt,
-      readAt: r.readAt,
-      isEncrypted: Boolean(r.isEncrypted),
-    }));
+    return rows.map((r) => this.mapMessageRow(r));
   }
 }

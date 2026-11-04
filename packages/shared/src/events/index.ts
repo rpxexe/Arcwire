@@ -23,7 +23,7 @@ export enum IpmEventType {
   GROUP_MESSAGE = 'GROUP_MESSAGE',
   GROUP_HOST_MIGRATED = 'GROUP_HOST_MIGRATED',
 
-  // Private Conversations
+  // Private Conversations (Phase 4)
   PRIVATE_INVITE = 'PRIVATE_INVITE',
   PRIVATE_JOIN_REQUEST = 'PRIVATE_JOIN_REQUEST',
   PRIVATE_JOIN_ACCEPTED = 'PRIVATE_JOIN_ACCEPTED',
@@ -92,6 +92,19 @@ export enum IpcChannels {
   MESSAGES_SEND_TYPING = 'messages:send-typing',
   MESSAGES_SEARCH = 'messages:search',
 
+  // Private Chat (Phase 4)
+  PRIVATE_STATUS = 'private:status',
+  PRIVATE_SETUP_CREDENTIAL = 'private:setup-credential',
+  PRIVATE_UNLOCK = 'private:unlock',
+  PRIVATE_LOCK = 'private:lock',
+  PRIVATE_CONVERSATIONS_LIST = 'private:conversations-list',
+  PRIVATE_CONVERSATIONS_CREATE = 'private:conversations-create',
+  PRIVATE_INVITATION_CREATE = 'private:invitation-create',
+  PRIVATE_INVITATION_VERIFY = 'private:invitation-verify',
+  PRIVATE_INVITATION_REDEEM = 'private:invitation-redeem',
+  PRIVATE_INVITATIONS_LIST = 'private:invitations-list',
+  PRIVATE_INVITATION_REVOKE = 'private:invitation-revoke',
+
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
@@ -100,4 +113,5 @@ export enum IpcChannels {
   EVENT_MESSAGE_RECEIPT = 'event:message-receipt',
   EVENT_TYPING_INDICATOR = 'event:typing-indicator',
   EVENT_CONVERSATION_UPDATED = 'event:conversation-updated',
+  EVENT_PRIVATE_LOCK_STATE = 'event:private-lock-state',
 }

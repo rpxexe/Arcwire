@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ipm/shared": "workspace:*",
+    "@node-rs/argon2": "^2.2.2",
     "selfsigned": "^5.5.0"
   },
   "devDependencies": {

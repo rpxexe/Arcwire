@@ -1,6 +1,13 @@
 import { eq, desc, and, ne, isNull, sql } from 'drizzle-orm';
 import { DatabaseService } from '../connection';
-import { conversations, conversationMembers, messages, groups, devices } from '../schema/index';
+import {
+  conversations,
+  conversationMembers,
+  messages,
+  groups,
+  devices,
+  privateConversations,
+} from '../schema/index';
 import type { ConversationItem } from '@ipm/shared';
 
 export class ConversationRepository {
@@ -82,6 +89,13 @@ export class ConversationRepository {
             hostDeviceId = groupRow.hostDeviceId;
             isHost = Boolean(groupRow.isHost || groupRow.hostDeviceId === localDeviceId);
           }
+        } else if (row.type === 'private') {
+          const priv = db.select().from(privateConversations).where(eq(privateConversations.id, row.id)).limit(1).all()[0];
+          if (priv) {
+            title = priv.title;
+            hostDeviceId = priv.creatorDeviceId;
+            isHost = priv.creatorDeviceId === localDeviceId;
+          }
         }
 
         return {
@@ -101,8 +115,8 @@ export class ConversationRepository {
       });
   }
 
-  public getConversationById(id: string, localDeviceId: string = ''): ConversationItem | null {
-    const list = this.getConversations(localDeviceId, true);
+  public getConversationById(id: string, localDeviceId: string = '', includePrivate: boolean = true): ConversationItem | null {
+    const list = this.getConversations(localDeviceId, includePrivate);
     return list.find((c) => c.id === id) || null;
   }
 
@@ -128,7 +142,7 @@ export class ConversationRepository {
           .limit(1)
           .all()[0];
         if (peerMember) {
-          return this.getConversationById(convId, localDeviceId);
+          return this.getConversationById(convId, localDeviceId, false);
         }
       }
     }
@@ -147,7 +161,7 @@ export class ConversationRepository {
     const convId = `conv_${first.slice(0, 10)}_${second.slice(0, 10)}`;
 
     this.createConversation(convId, 'direct', peerDisplayName || 'Direct Message', [localDeviceId, peerDeviceId]);
-    const created = this.getConversationById(convId, localDeviceId);
+    const created = this.getConversationById(convId, localDeviceId, false);
     if (!created) {
       throw new Error(`Failed to create direct conversation between ${localDeviceId} and ${peerDeviceId}`);
     }
