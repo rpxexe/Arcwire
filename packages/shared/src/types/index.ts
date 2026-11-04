@@ -17,6 +17,17 @@ import {
   CreateInvitationInput,
   RedeemInvitationInput,
   PrivateStatus,
+  TransferItem,
+  TransferStatus,
+  SendFileInput,
+  SharedFolderItem,
+  CreateSharedFolderInput,
+  UpdateSharedFolderInput,
+  RemoteFolderItem,
+  BrowseRemoteFolderInput,
+  RemoteFolderOperationInput,
+  FolderListResponsePayload,
+  FolderOperationResponsePayload,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -93,6 +104,14 @@ export interface InvitationItem {
   createdAt: number;
 }
 
+export interface TransferProgressEventData {
+  transferId: string;
+  bytesTransferred: number;
+  speed: number;
+  remainingTime: number;
+  status: TransferStatus;
+}
+
 export interface IpcApi {
   // Window
   minimizeWindow: () => Promise<void>;
@@ -141,7 +160,27 @@ export interface IpcApi {
   listPrivateInvitations: (conversationId: string) => Promise<InvitationItem[]>;
   revokePrivateInvitation: (invitationId: string) => Promise<void>;
 
-  // Listeners
+  // File Transfer (Phase 5)
+  getTransfers: (conversationId?: string) => Promise<TransferItem[]>;
+  sendFile: (input: SendFileInput) => Promise<TransferItem>;
+  acceptTransfer: (transferId: string, savePath?: string) => Promise<void>;
+  rejectTransfer: (transferId: string) => Promise<void>;
+  pauseTransfer: (transferId: string) => Promise<void>;
+  resumeTransfer: (transferId: string) => Promise<void>;
+  cancelTransfer: (transferId: string) => Promise<void>;
+  selectFile: () => Promise<string[] | null>;
+  openTransferFolder: (filePath: string) => Promise<void>;
+
+  // Shared Folders (Phase 5)
+  getSharedFolders: () => Promise<SharedFolderItem[]>;
+  createSharedFolder: (input: CreateSharedFolderInput) => Promise<SharedFolderItem>;
+  updateSharedFolder: (input: UpdateSharedFolderInput) => Promise<SharedFolderItem>;
+  deleteSharedFolder: (folderId: string) => Promise<void>;
+  selectDirectory: () => Promise<string | null>;
+  browseRemoteFolder: (input: BrowseRemoteFolderInput) => Promise<FolderListResponsePayload>;
+  executeRemoteFolderOp: (input: RemoteFolderOperationInput) => Promise<FolderOperationResponsePayload>;
+
+  // Event Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
   onDeviceDiscovered: (callback: (device: DeviceInfo) => void) => () => void;
   onDeviceUpdated: (callback: (device: DeviceInfo) => void) => () => void;
@@ -150,6 +189,10 @@ export interface IpcApi {
   onTypingIndicator: (callback: (typing: TypingEventData) => void) => () => void;
   onConversationUpdated: (callback: (conversation: ConversationItem) => void) => () => void;
   onPrivateLockStateChange: (callback: (state: { isUnlocked: boolean; lockedUntil?: number | null }) => void) => () => void;
+  onTransferOffer: (callback: (transfer: TransferItem) => void) => () => void;
+  onTransferProgress: (callback: (progress: TransferProgressEventData) => void) => () => void;
+  onTransferCompleted: (callback: (transfer: TransferItem) => void) => () => void;
+  onTransferFailed: (callback: (data: { transferId: string; error: string }) => void) => () => void;
 }
 
 declare global {

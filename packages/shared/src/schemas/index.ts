@@ -332,3 +332,135 @@ export const PrivateJoinAcceptedPayloadSchema = z.object({
   timestamp: z.number(),
 });
 export type PrivateJoinAcceptedPayload = z.infer<typeof PrivateJoinAcceptedPayloadSchema>;
+
+// Phase 5: File Transfer & Folder Sharing Schemas
+export const TransferStatusEnum = z.enum([
+  'offered',
+  'accepted',
+  'transferring',
+  'paused',
+  'queued',
+  'completed',
+  'cancelled',
+  'rejected',
+  'failed',
+]);
+export type TransferStatus = z.infer<typeof TransferStatusEnum>;
+
+export const TransferItemSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  direction: z.enum(['incoming', 'outgoing']),
+  remoteDeviceId: z.string(),
+  fileName: z.string(),
+  fileSize: z.number().int().nonnegative(),
+  fileHash: z.string(),
+  tempPath: z.string(),
+  finalPath: z.string().nullable().optional(),
+  bytesTransferred: z.number().int().nonnegative(),
+  status: TransferStatusEnum,
+  speed: z.number().nonnegative().default(0), // bytes per second
+  remainingTime: z.number().nonnegative().default(0), // seconds
+  errorMessage: z.string().nullable().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type TransferItem = z.infer<typeof TransferItemSchema>;
+
+export const SendFileInputSchema = z.object({
+  conversationId: z.string(),
+  filePath: z.string(),
+  peerDeviceId: z.string(),
+});
+export type SendFileInput = z.infer<typeof SendFileInputSchema>;
+
+export const AcceptTransferInputSchema = z.object({
+  transferId: z.string(),
+  savePath: z.string().optional(),
+});
+export type AcceptTransferInput = z.infer<typeof AcceptTransferInputSchema>;
+
+export const FolderPermissionEnum = z.enum(['read_only', 'upload', 'modify', 'full_control']);
+export type FolderPermission = z.infer<typeof FolderPermissionEnum>;
+
+export const SharedFolderItemSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100),
+  localPath: z.string(),
+  defaultPermission: FolderPermissionEnum.default('read_only'),
+  isEnabled: z.boolean().default(true),
+  createdAt: z.number(),
+});
+export type SharedFolderItem = z.infer<typeof SharedFolderItemSchema>;
+
+export const CreateSharedFolderInputSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  localPath: z.string().min(1, 'Path is required'),
+  defaultPermission: FolderPermissionEnum.default('read_only'),
+});
+export type CreateSharedFolderInput = z.infer<typeof CreateSharedFolderInputSchema>;
+
+export const UpdateSharedFolderInputSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100).optional(),
+  defaultPermission: FolderPermissionEnum.optional(),
+  isEnabled: z.boolean().optional(),
+});
+export type UpdateSharedFolderInput = z.infer<typeof UpdateSharedFolderInputSchema>;
+
+export const RemoteFolderItemSchema = z.object({
+  name: z.string(),
+  relativePath: z.string(),
+  isDirectory: z.boolean(),
+  size: z.number().int().nonnegative(),
+  modifiedAt: z.number(),
+});
+export type RemoteFolderItem = z.infer<typeof RemoteFolderItemSchema>;
+
+export const BrowseRemoteFolderInputSchema = z.object({
+  peerDeviceId: z.string(),
+  folderId: z.string(),
+  subPath: z.string().default(''),
+});
+export type BrowseRemoteFolderInput = z.infer<typeof BrowseRemoteFolderInputSchema>;
+
+export const RemoteFolderOperationInputSchema = z.object({
+  peerDeviceId: z.string(),
+  folderId: z.string(),
+  action: z.enum(['create_dir', 'rename', 'delete', 'download', 'upload']),
+  targetPath: z.string(),
+  newPath: z.string().optional(),
+});
+export type RemoteFolderOperationInput = z.infer<typeof RemoteFolderOperationInputSchema>;
+
+export const FolderListPayloadSchema = z.object({
+  folderId: z.string(),
+  subPath: z.string().default(''),
+});
+export type FolderListPayload = z.infer<typeof FolderListPayloadSchema>;
+
+export const FolderListResponsePayloadSchema = z.object({
+  folderId: z.string(),
+  subPath: z.string(),
+  items: z.array(RemoteFolderItemSchema),
+  permission: FolderPermissionEnum,
+  error: z.string().optional(),
+});
+export type FolderListResponsePayload = z.infer<typeof FolderListResponsePayloadSchema>;
+
+export const FolderModifyPayloadSchema = z.object({
+  folderId: z.string(),
+  action: z.enum(['create_dir', 'rename', 'delete']),
+  targetPath: z.string(),
+  newPath: z.string().optional(),
+});
+export type FolderModifyPayload = z.infer<typeof FolderModifyPayloadSchema>;
+
+export const FolderOperationResponsePayloadSchema = z.object({
+  folderId: z.string(),
+  action: z.string(),
+  targetPath: z.string(),
+  success: z.boolean(),
+  error: z.string().optional(),
+});
+export type FolderOperationResponsePayload = z.infer<typeof FolderOperationResponsePayloadSchema>;

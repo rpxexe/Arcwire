@@ -7,6 +7,8 @@ import {
   ConversationItem,
   ReceiptEventData,
   TypingEventData,
+  TransferItem,
+  TransferProgressEventData,
 } from '@ipm/shared';
 
 const api: IpcApi = {
@@ -57,6 +59,34 @@ const api: IpcApi = {
   listPrivateInvitations: (conversationId) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATIONS_LIST, conversationId),
   revokePrivateInvitation: (invitationId) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATION_REVOKE, invitationId),
 
+  // File Transfer (Phase 5)
+  getTransfers: (conversationId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_LIST, conversationId),
+  sendFile: (input) => ipcRenderer.invoke(IpcChannels.TRANSFERS_SEND_FILE, input),
+  acceptTransfer: (transferId, savePath) => ipcRenderer.invoke(IpcChannels.TRANSFERS_ACCEPT, { transferId, savePath }),
+  rejectTransfer: (transferId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_REJECT, transferId),
+  pauseTransfer: (transferId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_PAUSE, transferId),
+  resumeTransfer: (transferId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_RESUME, transferId),
+  cancelTransfer: (transferId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_CANCEL, transferId),
+  selectFile: () => ipcRenderer.invoke(IpcChannels.TRANSFERS_SELECT_FILE),
+  openTransferFolder: (filePath) => ipcRenderer.invoke(IpcChannels.TRANSFERS_OPEN_FOLDER, filePath),
+
+  // Shared Folders (Phase 5)
+  getSharedFolders: () => ipcRenderer.invoke(IpcChannels.FOLDERS_LIST),
+  createSharedFolder: (input) => ipcRenderer.invoke(IpcChannels.FOLDERS_CREATE, input),
+  updateSharedFolder: (input) => ipcRenderer.invoke(IpcChannels.FOLDERS_UPDATE, input),
+  deleteSharedFolder: (folderId) => ipcRenderer.invoke(IpcChannels.FOLDERS_DELETE, folderId),
+  selectDirectory: () => ipcRenderer.invoke(IpcChannels.FOLDERS_SELECT_DIRECTORY),
+  browseRemoteFolder: (input) => ipcRenderer.invoke(IpcChannels.FOLDERS_BROWSE_REMOTE, input),
+  executeRemoteFolderOp: (input) => {
+    if (input.action === 'create_dir') {
+      return ipcRenderer.invoke(IpcChannels.FOLDERS_CREATE_REMOTE_DIR, input);
+    } else if (input.action === 'rename') {
+      return ipcRenderer.invoke(IpcChannels.FOLDERS_RENAME_REMOTE_ITEM, input);
+    } else {
+      return ipcRenderer.invoke(IpcChannels.FOLDERS_DELETE_REMOTE_ITEM, input);
+    }
+  },
+
   // Event Listeners
   onNetworkStatusChange: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { online: boolean; ip?: string }) => callback(data);
@@ -97,6 +127,26 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: { isUnlocked: boolean; lockedUntil?: number | null }) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_PRIVATE_LOCK_STATE, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_PRIVATE_LOCK_STATE, handler);
+  },
+  onTransferOffer: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: TransferItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TRANSFER_OFFER, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_OFFER, handler);
+  },
+  onTransferProgress: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: TransferProgressEventData) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TRANSFER_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_PROGRESS, handler);
+  },
+  onTransferCompleted: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: TransferItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TRANSFER_COMPLETED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_COMPLETED, handler);
+  },
+  onTransferFailed: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { transferId: string; error: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TRANSFER_FAILED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_FAILED, handler);
   },
 };
 

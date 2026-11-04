@@ -30,7 +30,7 @@ export enum IpmEventType {
   PRIVATE_UNLOCK = 'PRIVATE_UNLOCK',
   PRIVATE_MESSAGE = 'PRIVATE_MESSAGE',
 
-  // File Transfer
+  // File Transfer (Phase 5)
   FILE_OFFER = 'FILE_OFFER',
   FILE_ACCEPT = 'FILE_ACCEPT',
   FILE_REJECT = 'FILE_REJECT',
@@ -38,13 +38,16 @@ export enum IpmEventType {
   FILE_CHUNK_ACK = 'FILE_CHUNK_ACK',
   FILE_COMPLETE = 'FILE_COMPLETE',
   FILE_CANCEL = 'FILE_CANCEL',
+  FILE_PAUSE = 'FILE_PAUSE',
+  FILE_RESUME = 'FILE_RESUME',
 
-  // Folder Sharing
+  // Folder Sharing (Phase 5)
   FOLDER_LIST = 'FOLDER_LIST',
   FOLDER_LIST_RESPONSE = 'FOLDER_LIST_RESPONSE',
   FOLDER_DOWNLOAD = 'FOLDER_DOWNLOAD',
   FOLDER_UPLOAD = 'FOLDER_UPLOAD',
   FOLDER_MODIFY = 'FOLDER_MODIFY',
+  FOLDER_OPERATION_RESPONSE = 'FOLDER_OPERATION_RESPONSE',
 
   // Calling & WebRTC Signaling
   CALL_REQUEST = 'CALL_REQUEST',
@@ -105,6 +108,30 @@ export enum IpcChannels {
   PRIVATE_INVITATIONS_LIST = 'private:invitations-list',
   PRIVATE_INVITATION_REVOKE = 'private:invitation-revoke',
 
+  // File Transfer (Phase 5)
+  TRANSFERS_LIST = 'transfers:list',
+  TRANSFERS_SEND_FILE = 'transfers:send-file',
+  TRANSFERS_ACCEPT = 'transfers:accept',
+  TRANSFERS_REJECT = 'transfers:reject',
+  TRANSFERS_PAUSE = 'transfers:pause',
+  TRANSFERS_RESUME = 'transfers:resume',
+  TRANSFERS_CANCEL = 'transfers:cancel',
+  TRANSFERS_SELECT_FILE = 'transfers:select-file',
+  TRANSFERS_OPEN_FOLDER = 'transfers:open-folder',
+
+  // Shared Folders (Phase 5)
+  FOLDERS_LIST = 'folders:list',
+  FOLDERS_CREATE = 'folders:create',
+  FOLDERS_UPDATE = 'folders:update',
+  FOLDERS_DELETE = 'folders:delete',
+  FOLDERS_SELECT_DIRECTORY = 'folders:select-directory',
+  FOLDERS_BROWSE_REMOTE = 'folders:browse-remote',
+  FOLDERS_DOWNLOAD_FILE = 'folders:download-file',
+  FOLDERS_UPLOAD_FILE = 'folders:upload-file',
+  FOLDERS_CREATE_REMOTE_DIR = 'folders:create-remote-dir',
+  FOLDERS_DELETE_REMOTE_ITEM = 'folders:delete-remote-item',
+  FOLDERS_RENAME_REMOTE_ITEM = 'folders:rename-remote-item',
+
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
@@ -114,4 +141,9 @@ export enum IpcChannels {
   EVENT_TYPING_INDICATOR = 'event:typing-indicator',
   EVENT_CONVERSATION_UPDATED = 'event:conversation-updated',
   EVENT_PRIVATE_LOCK_STATE = 'event:private-lock-state',
+  EVENT_TRANSFER_OFFER = 'event:transfer-offer',
+  EVENT_TRANSFER_PROGRESS = 'event:transfer-progress',
+  EVENT_TRANSFER_COMPLETED = 'event:transfer-completed',
+  EVENT_TRANSFER_FAILED = 'event:transfer-failed',
+  EVENT_TRANSFER_CANCELLED = 'event:transfer-cancelled',
 }
