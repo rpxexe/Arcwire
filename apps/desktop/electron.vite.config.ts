@@ -23,6 +23,7 @@ export default defineConfig({
         '@ipm/networking': resolve(__dirname, '../../packages/networking/src'),
         '@ipm/messaging': resolve(__dirname, '../../packages/messaging/src'),
         '@ipm/file-sharing': resolve(__dirname, '../../packages/file-sharing/src'),
+        '@ipm/calling/client': resolve(__dirname, '../../packages/calling/src/client.ts'),
         '@ipm/calling': resolve(__dirname, '../../packages/calling/src'),
       },
     },
@@ -54,6 +55,7 @@ export default defineConfig({
       alias: {
         '@': resolve(__dirname, 'src'),
         '@ipm/shared': resolve(__dirname, '../../packages/shared/src'),
+        '@ipm/calling/client': resolve(__dirname, '../../packages/calling/src/client.ts'),
       },
     },
     build: {

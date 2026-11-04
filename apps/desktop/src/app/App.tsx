@@ -27,14 +27,18 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     // 1. Initialize Theme from settings
-    window.api
-      .getSettings()
-      .then((settings) => {
-        initializeTheme(settings.theme);
-      })
-      .catch(() => {
-        initializeTheme('system');
-      });
+    if (window.api?.getSettings) {
+      window.api
+        .getSettings()
+        .then((settings) => {
+          initializeTheme(settings.theme);
+        })
+        .catch(() => {
+          initializeTheme('system');
+        });
+    } else {
+      initializeTheme('system');
+    }
 
     // 2. Load Profile and System information
     loadProfileAndSystem();
@@ -46,7 +50,7 @@ export const App: React.FC = () => {
     const unsubCalls = initCallListeners();
 
     return () => {
-      unsubCalls();
+      unsubCalls?.();
     };
   }, []);
 
@@ -54,7 +58,7 @@ export const App: React.FC = () => {
     return (
       <div className="h-screen w-screen bg-background flex flex-col items-center justify-center select-none text-muted-foreground gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-xs font-semibold tracking-wide">Initializing IP Messenger Engine...</span>
+        <span className="text-xs font-semibold tracking-wide">Initializing Arcwire LAN Engine...</span>
       </div>
     );
   }

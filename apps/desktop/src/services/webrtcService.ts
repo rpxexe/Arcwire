@@ -1,4 +1,4 @@
-import { LanIceConfig, CallStatsMonitor } from '@ipm/calling';
+import { LanIceConfig, CallStatsMonitor } from '@ipm/calling/client';
 import { CallSignalInput, ScreenShareOptions, CallStats } from '@ipm/shared';
 
 export interface WebRtcCallbacks {
