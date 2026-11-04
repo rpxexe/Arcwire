@@ -206,3 +206,4 @@ export const PrivateUnlockScreen: React.FC = () => {
     </div>
   );
 };
+

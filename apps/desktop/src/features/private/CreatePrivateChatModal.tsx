@@ -92,3 +92,4 @@ export const CreatePrivateChatModal: React.FC = () => {
     </div>
   );
 };
+

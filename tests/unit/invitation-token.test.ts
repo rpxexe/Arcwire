@@ -46,3 +46,4 @@ describe('InvitationTokenManager (PRV-XXXX-XXXX System)', () => {
     expect(lowerHash).toBe(hash1);
   });
 });
+

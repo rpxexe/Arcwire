@@ -101,3 +101,4 @@ export const JoinPrivateChatModal: React.FC = () => {
     </div>
   );
 };
+

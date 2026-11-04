@@ -240,3 +240,4 @@ export const InviteToPrivateChatModal: React.FC = () => {
     </div>
   );
 };
+
