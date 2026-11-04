@@ -14,6 +14,7 @@ export enum IpmEventType {
   MESSAGE_ACK = 'MESSAGE_ACK',
   MESSAGE_DELIVERED = 'MESSAGE_DELIVERED',
   MESSAGE_READ = 'MESSAGE_READ',
+  TYPING_INDICATOR = 'TYPING_INDICATOR',
 
   // Group Messaging
   GROUP_CREATE = 'GROUP_CREATE',
@@ -74,15 +75,29 @@ export enum IpcChannels {
   SETTINGS_GET = 'settings:get',
   SETTINGS_UPDATE = 'settings:update',
 
-  // Devices & Network (Phase 2+)
+  // Devices & Network (Phase 2)
   DEVICES_LIST = 'devices:list',
   DEVICES_REFRESH = 'devices:refresh',
   DEVICES_CONNECT_MANUAL = 'devices:connect-manual',
   DEVICES_TOGGLE_TRUST = 'devices:toggle-trust',
+
+  // Conversations & Messaging (Phase 3)
+  CONVERSATIONS_LIST = 'conversations:list',
+  CONVERSATIONS_GET = 'conversations:get',
+  CONVERSATIONS_CREATE_DIRECT = 'conversations:create-direct',
+  CONVERSATIONS_CREATE_GROUP = 'conversations:create-group',
+  MESSAGES_LIST = 'messages:list',
+  MESSAGES_SEND = 'messages:send',
+  MESSAGES_SEND_READ = 'messages:send-read',
+  MESSAGES_SEND_TYPING = 'messages:send-typing',
+  MESSAGES_SEARCH = 'messages:search',
 
   // Events emitted from Main to Renderer
   EVENT_NETWORK_STATUS = 'event:network-status',
   EVENT_DEVICE_DISCOVERED = 'event:device-discovered',
   EVENT_DEVICE_UPDATED = 'event:device-updated',
   EVENT_MESSAGE_RECEIVED = 'event:message-received',
+  EVENT_MESSAGE_RECEIPT = 'event:message-receipt',
+  EVENT_TYPING_INDICATOR = 'event:typing-indicator',
+  EVENT_CONVERSATION_UPDATED = 'event:conversation-updated',
 }

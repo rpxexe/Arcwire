@@ -8,6 +8,9 @@ import {
   UserStatus,
   DirectConnectInput,
   TrustDeviceInput,
+  SendMessageInput,
+  CreateConversationInput,
+  SearchMessagesInput,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -36,6 +39,11 @@ export interface ConversationItem {
   lastActivityAt: number;
   unreadCount: number;
   isLocked?: boolean;
+  peerDeviceId?: string; // for direct chats
+  memberDeviceIds?: string[];
+  hostDeviceId?: string; // for group chats
+  isHost?: boolean;
+  description?: string | null;
 }
 
 export interface MessageItem {
@@ -50,6 +58,20 @@ export interface MessageItem {
   deliveredAt?: number | null;
   readAt?: number | null;
   isEncrypted: boolean;
+  replyToId?: string | null;
+}
+
+export interface ReceiptEventData {
+  messageId: string;
+  conversationId: string;
+  receiptType: 'ack' | 'delivered' | 'read';
+  timestamp: number;
+}
+
+export interface TypingEventData {
+  conversationId: string;
+  deviceId: string;
+  isTyping: boolean;
 }
 
 export interface IpcApi {
@@ -77,11 +99,25 @@ export interface IpcApi {
   connectManual: (input: DirectConnectInput) => Promise<DeviceInfo>;
   toggleDeviceTrust: (input: TrustDeviceInput) => Promise<void>;
 
+  // Conversations & Messaging (Phase 3)
+  getConversations: (includePrivate?: boolean) => Promise<ConversationItem[]>;
+  getConversation: (id: string) => Promise<ConversationItem | null>;
+  createDirectConversation: (peerDeviceId: string) => Promise<ConversationItem>;
+  createGroupConversation: (input: { name: string; description?: string; memberDeviceIds: string[] }) => Promise<ConversationItem>;
+  getMessages: (conversationId: string, limit?: number) => Promise<MessageItem[]>;
+  sendMessage: (input: SendMessageInput) => Promise<MessageItem>;
+  markMessagesRead: (conversationId: string) => Promise<void>;
+  sendTyping: (conversationId: string, isTyping: boolean) => Promise<void>;
+  searchMessages: (input: SearchMessagesInput) => Promise<MessageItem[]>;
+
   // Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
   onDeviceDiscovered: (callback: (device: DeviceInfo) => void) => () => void;
   onDeviceUpdated: (callback: (device: DeviceInfo) => void) => () => void;
   onMessageReceived: (callback: (message: MessageItem) => void) => () => void;
+  onMessageReceipt: (callback: (receipt: ReceiptEventData) => void) => () => void;
+  onTypingIndicator: (callback: (typing: TypingEventData) => void) => () => void;
+  onConversationUpdated: (callback: (conversation: ConversationItem) => void) => () => void;
 }
 
 declare global {

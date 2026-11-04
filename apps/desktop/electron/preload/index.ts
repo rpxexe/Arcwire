@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannels, IpcApi, DeviceInfo, MessageItem } from '@ipm/shared';
+import {
+  IpcChannels,
+  IpcApi,
+  DeviceInfo,
+  MessageItem,
+  ConversationItem,
+  ReceiptEventData,
+  TypingEventData,
+} from '@ipm/shared';
 
 const api: IpcApi = {
   // Window
@@ -26,6 +34,17 @@ const api: IpcApi = {
   connectManual: (input) => ipcRenderer.invoke(IpcChannels.DEVICES_CONNECT_MANUAL, input),
   toggleDeviceTrust: (input) => ipcRenderer.invoke(IpcChannels.DEVICES_TOGGLE_TRUST, input),
 
+  // Conversations & Messaging (Phase 3)
+  getConversations: (includePrivate) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_LIST, { includePrivate }),
+  getConversation: (id) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_GET, id),
+  createDirectConversation: (peerDeviceId) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_CREATE_DIRECT, peerDeviceId),
+  createGroupConversation: (input) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_CREATE_GROUP, input),
+  getMessages: (conversationId, limit) => ipcRenderer.invoke(IpcChannels.MESSAGES_LIST, { conversationId, limit }),
+  sendMessage: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND, input),
+  markMessagesRead: (conversationId) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND_READ, { conversationId }),
+  sendTyping: (conversationId, isTyping) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND_TYPING, { conversationId, isTyping }),
+  searchMessages: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEARCH, input),
+
   // Event Listeners
   onNetworkStatusChange: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { online: boolean; ip?: string }) => callback(data);
@@ -46,6 +65,21 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: MessageItem) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_MESSAGE_RECEIVED, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_MESSAGE_RECEIVED, handler);
+  },
+  onMessageReceipt: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: ReceiptEventData) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_MESSAGE_RECEIPT, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_MESSAGE_RECEIPT, handler);
+  },
+  onTypingIndicator: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: TypingEventData) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TYPING_INDICATOR, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TYPING_INDICATOR, handler);
+  },
+  onConversationUpdated: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: ConversationItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CONVERSATION_UPDATED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CONVERSATION_UPDATED, handler);
   },
 };
 

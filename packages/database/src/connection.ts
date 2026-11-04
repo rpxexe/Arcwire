@@ -12,7 +12,7 @@ export class DatabaseService {
   private db: BetterSQLite3Database<typeof schema>;
   private sqlite: any;
 
-  private constructor(config: DatabaseConfig) {
+  public constructor(config: DatabaseConfig) {
     const dir = path.dirname(config.dbPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -89,6 +89,10 @@ export class DatabaseService {
 
     this.initTables();
     this.db = drizzle(this.sqlite, { schema });
+  }
+
+  public static create(config: DatabaseConfig): DatabaseService {
+    return new DatabaseService(config);
   }
 
   public static initialize(config: DatabaseConfig): DatabaseService {
