@@ -186,3 +186,4 @@ apps/desktop/dist/Arcwire Setup 1.0.0.exe
 | File transfer stuck at 0% | Inbound TCP 45821 is blocked on the receiver machine | Ensure inbound TCP port 45821 is allowed in Windows Defender Firewall on the receiver. |
 | Call connects but no audio/video | Windows Camera/Microphone privacy settings blocking desktop apps | Open Windows Settings -> Privacy & Security -> Microphone/Camera -> Turn on "Let desktop apps access your microphone/camera". |
 | "Database locked" or corrupted | Abrupt system power loss | Check `%APPDATA%/IPMessenger/logs/crash.log`. Arcwire runs `PRAGMA integrity_check` on every boot and uses SQLite WAL mode for crash tolerance. |
+
