@@ -7,3 +7,5 @@ export * from './repositories/ConversationRepository';
 export * from './repositories/MessageRepository';
 export * from './repositories/GroupRepository';
 export * from './repositories/PrivateChatRepository';
+export * from './repositories/TransferRepository';
+export * from './repositories/SharedFolderRepository';

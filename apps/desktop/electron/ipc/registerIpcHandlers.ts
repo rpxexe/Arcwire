@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, dialog, shell } from 'electron';
 import {
   IpcChannels,
   ProfileCreateSchema,
@@ -15,6 +15,12 @@ import {
   CreatePrivateConversationInputSchema,
   CreateInvitationInputSchema,
   RedeemInvitationInputSchema,
+  SendFileInputSchema,
+  AcceptTransferInputSchema,
+  CreateSharedFolderInputSchema,
+  UpdateSharedFolderInputSchema,
+  BrowseRemoteFolderInputSchema,
+  RemoteFolderOperationInputSchema,
 } from '@ipm/shared';
 import { SystemInfoService } from '../services/SystemInfoService';
 import {
@@ -25,11 +31,15 @@ import {
   MessageRepository,
   GroupRepository,
   PrivateChatRepository,
+  TransferRepository,
+  SharedFolderRepository,
 } from '@ipm/database';
 import { SecretKeyStore, generateDeviceIdentity, deriveDeviceId } from '@ipm/security';
 import type { LanTransportAdapter } from '@ipm/networking';
 import type { MessagingService } from '@ipm/messaging';
 import type { PrivateSessionManager } from '../services/PrivateSessionManager';
+import type { FileTransferService } from '../services/FileTransferService';
+import type { FolderSharingService } from '../services/FolderSharingService';
 
 export interface IpcHandlerDependencies {
   profileRepo: ProfileRepository;
@@ -40,6 +50,10 @@ export interface IpcHandlerDependencies {
   groupRepo: GroupRepository;
   privateRepo: PrivateChatRepository;
   privateSession: PrivateSessionManager;
+  transferRepo: TransferRepository;
+  folderRepo: SharedFolderRepository;
+  transferService: FileTransferService;
+  folderService: FolderSharingService;
   secretStore: SecretKeyStore;
   getMainWindow: () => BrowserWindow | null;
   getLanAdapter: () => LanTransportAdapter | null;
@@ -56,6 +70,10 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     messageRepo,
     privateRepo,
     privateSession,
+    transferRepo,
+    folderRepo,
+    transferService,
+    folderService,
     secretStore,
     getMainWindow,
     getLanAdapter,
@@ -127,6 +145,8 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     );
 
     privateSession.updateLocalDeviceId(deviceId);
+    transferService.updateLocalDeviceId(deviceId);
+    folderService.updateLocalDeviceId(deviceId);
     await initLanAdapter();
 
     return created;
@@ -194,7 +214,6 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.CONVERSATIONS_LIST, (_event, rawInput?: { includePrivate?: boolean }) => {
     const profile = profileRepo.getProfile();
     const localDeviceId = profile?.deviceId ?? '';
-    // Enforce private isolation: only include private if explicitly authorized and unlocked
     const includePrivate = Boolean(rawInput?.includePrivate && privateSession.isUnlocked());
     return conversationRepo.getConversations(localDeviceId, includePrivate);
   });
@@ -344,11 +363,141 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     privateSession.revokeInvitation(invitationId);
   });
 
-  // Listen to privateSession lock state changes and forward to renderer
   privateSession.onStateChange((state) => {
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
       win.webContents.send(IpcChannels.EVENT_PRIVATE_LOCK_STATE, state);
     }
+  });
+
+  // ==========================================
+  // File Transfer (Phase 5)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.TRANSFERS_LIST, (_event, conversationId?: string) => {
+    return transferRepo.listTransfers(conversationId);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_SEND_FILE, async (_event, rawInput: unknown) => {
+    const input = SendFileInputSchema.parse(rawInput);
+    return transferService.offerFile(input);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_ACCEPT, async (_event, rawInput: unknown) => {
+    const input = AcceptTransferInputSchema.parse(rawInput);
+    await transferService.acceptTransfer(input.transferId, input.savePath);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_REJECT, (_event, transferId: string) => {
+    transferService.rejectTransfer(transferId);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_PAUSE, (_event, transferId: string) => {
+    transferService.pauseTransfer(transferId);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_RESUME, (_event, transferId: string) => {
+    transferService.resumeTransfer(transferId);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_CANCEL, (_event, transferId: string) => {
+    transferService.cancelTransfer(transferId);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_SELECT_FILE, async () => {
+    const win = getMainWindow();
+    const result = await dialog.showOpenDialog(win || undefined as any, {
+      properties: ['openFile', 'multiSelections'],
+    });
+    return result.canceled ? null : result.filePaths;
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_OPEN_FOLDER, async (_event, filePath: string) => {
+    shell.showItemInFolder(filePath);
+  });
+
+  // Forward transferService events to renderer
+  transferService.on('offer', (transfer) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.EVENT_TRANSFER_OFFER, transfer);
+    }
+  });
+
+  transferService.on('progress', (data) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.EVENT_TRANSFER_PROGRESS, data);
+    }
+  });
+
+  transferService.on('completed', (transfer) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.EVENT_TRANSFER_COMPLETED, transfer);
+    }
+  });
+
+  transferService.on('failed', (data) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.EVENT_TRANSFER_FAILED, data);
+    }
+  });
+
+  // ==========================================
+  // Shared Folders (Phase 5)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.FOLDERS_LIST, () => {
+    return folderRepo.listSharedFolders();
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_CREATE, (_event, rawInput: unknown) => {
+    const input = CreateSharedFolderInputSchema.parse(rawInput);
+    const id = `fld_${Date.now()}`;
+    return folderRepo.createSharedFolder({
+      id,
+      name: input.name,
+      localPath: input.localPath,
+      defaultPermission: input.defaultPermission,
+    });
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_UPDATE, (_event, rawInput: unknown) => {
+    const input = UpdateSharedFolderInputSchema.parse(rawInput);
+    return folderRepo.updateSharedFolder(input.id, input);
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_DELETE, (_event, folderId: string) => {
+    return folderRepo.deleteSharedFolder(folderId);
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_SELECT_DIRECTORY, async () => {
+    const win = getMainWindow();
+    const result = await dialog.showOpenDialog(win || undefined as any, {
+      properties: ['openDirectory'],
+    });
+    return result.canceled ? null : result.filePaths[0] || null;
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_BROWSE_REMOTE, async (_event, rawInput: unknown) => {
+    const input = BrowseRemoteFolderInputSchema.parse(rawInput);
+    return folderService.browseRemoteFolder(input.peerDeviceId, input.folderId, input.subPath);
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_CREATE_REMOTE_DIR, async (_event, rawInput: unknown) => {
+    const input = RemoteFolderOperationInputSchema.parse(rawInput);
+    return folderService.executeRemoteOperation(input.peerDeviceId, input.folderId, 'create_dir', input.targetPath);
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_DELETE_REMOTE_ITEM, async (_event, rawInput: unknown) => {
+    const input = RemoteFolderOperationInputSchema.parse(rawInput);
+    return folderService.executeRemoteOperation(input.peerDeviceId, input.folderId, 'delete', input.targetPath);
+  });
+
+  ipcMain.handle(IpcChannels.FOLDERS_RENAME_REMOTE_ITEM, async (_event, rawInput: unknown) => {
+    const input = RemoteFolderOperationInputSchema.parse(rawInput);
+    return folderService.executeRemoteOperation(input.peerDeviceId, input.folderId, 'rename', input.targetPath, input.newPath);
   });
 }

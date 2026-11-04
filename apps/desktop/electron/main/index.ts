@@ -12,12 +12,16 @@ import {
   MessageRepository,
   GroupRepository,
   PrivateChatRepository,
+  TransferRepository,
+  SharedFolderRepository,
 } from '@ipm/database';
 import { SecretKeyStore } from '@ipm/security';
 import { LanTransportAdapter } from '@ipm/networking';
 import { MessagingService } from '@ipm/messaging';
-import { DEFAULT_PORTS, IpcChannels } from '@ipm/shared';
+import { DEFAULT_PORTS, IpcChannels, IpmEventType } from '@ipm/shared';
 import { PrivateSessionManager } from '../services/PrivateSessionManager';
+import { FileTransferService } from '../services/FileTransferService';
+import { FolderSharingService } from '../services/FolderSharingService';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -32,7 +36,11 @@ if (!gotTheLock) {
   let messageRepo: MessageRepository | null = null;
   let groupRepo: GroupRepository | null = null;
   let privateRepo: PrivateChatRepository | null = null;
+  let transferRepo: TransferRepository | null = null;
+  let folderRepo: SharedFolderRepository | null = null;
   let privateSession: PrivateSessionManager | null = null;
+  let transferService: FileTransferService | null = null;
+  let folderService: FolderSharingService | null = null;
   let secretStore: SecretKeyStore | null = null;
   let lanAdapter: LanTransportAdapter | null = null;
   let messagingService: MessagingService | null = null;
@@ -68,6 +76,13 @@ if (!gotTheLock) {
       deviceRepo: deviceRepo ?? undefined,
     });
 
+    if (transferService) {
+      transferService.updateLocalDeviceId(profile.deviceId);
+    }
+    if (folderService) {
+      folderService.updateLocalDeviceId(profile.deviceId);
+    }
+
     lanAdapter.on('deviceDiscovered', (device) => {
       const win = WindowManager.getInstance().getMainWindow();
       if (win && !win.isDestroyed()) {
@@ -89,6 +104,40 @@ if (!gotTheLock) {
         if (win && !win.isDestroyed()) {
           win.webContents.send(IpcChannels.EVENT_DEVICE_UPDATED, dev);
         }
+      }
+    });
+
+    // Route incoming network packets to appropriate services
+    lanAdapter.on('message', async (envelope) => {
+      try {
+        switch (envelope.type) {
+          case IpmEventType.FILE_OFFER:
+          case IpmEventType.FILE_ACCEPT:
+          case IpmEventType.FILE_REJECT:
+          case IpmEventType.FILE_CHUNK:
+          case IpmEventType.FILE_PAUSE:
+          case IpmEventType.FILE_RESUME:
+          case IpmEventType.FILE_CANCEL:
+          case IpmEventType.FILE_COMPLETE:
+            if (transferService) {
+              await transferService.handleIncomingEnvelope(envelope);
+            }
+            break;
+
+          case IpmEventType.FOLDER_LIST:
+          case IpmEventType.FOLDER_LIST_RESPONSE:
+          case IpmEventType.FOLDER_MODIFY:
+          case IpmEventType.FOLDER_OPERATION_RESPONSE:
+            if (folderService) {
+              await folderService.handleIncomingEnvelope(envelope);
+            }
+            break;
+
+          default:
+            break;
+        }
+      } catch (err) {
+        console.error('[Main] Error handling network envelope in Phase 5 services:', err);
       }
     });
 
@@ -188,6 +237,8 @@ if (!gotTheLock) {
     messageRepo = new MessageRepository(dbService);
     groupRepo = new GroupRepository(dbService);
     privateRepo = new PrivateChatRepository(dbService);
+    transferRepo = new TransferRepository(dbService);
+    folderRepo = new SharedFolderRepository(dbService);
 
     // 3. Initialize DPAPI Key Store
     secretStore = new SecretKeyStore({
@@ -198,16 +249,31 @@ if (!gotTheLock) {
     const localProfile = profileRepo.getProfile();
     privateSession = new PrivateSessionManager(privateRepo, localProfile?.deviceId ?? '');
 
-    // 4. Initialize Window Manager
+    // 4. Initialize Phase 5 File Transfer & Folder Sharing Services
+    transferService = new FileTransferService({
+      localDeviceId: localProfile?.deviceId ?? '',
+      transfersDir: paths.transfers,
+      transferRepo,
+      settingsRepo,
+      getLanAdapter: () => lanAdapter,
+    });
+
+    folderService = new FolderSharingService({
+      localDeviceId: localProfile?.deviceId ?? '',
+      folderRepo,
+      getLanAdapter: () => lanAdapter,
+    });
+
+    // 5. Initialize Window Manager
     const windowManager = WindowManager.getInstance();
     windowManager.setSettingsRepository(settingsRepo);
     const mainWindow = windowManager.createMainWindow();
 
-    // 5. Initialize System Tray
+    // 6. Initialize System Tray
     const trayManager = TrayManager.getInstance();
     trayManager.initialize(mainWindow);
 
-    // 6. Register Typed IPC Handlers
+    // 7. Register Typed IPC Handlers
     registerIpcHandlers({
       profileRepo,
       settingsRepo,
@@ -217,6 +283,10 @@ if (!gotTheLock) {
       groupRepo,
       privateRepo,
       privateSession,
+      transferRepo,
+      folderRepo,
+      transferService,
+      folderService,
       secretStore,
       getMainWindow: () => windowManager.getMainWindow(),
       getLanAdapter: () => lanAdapter,
@@ -224,7 +294,7 @@ if (!gotTheLock) {
       getMessagingService: () => messagingService,
     });
 
-    // 7. Auto-start LAN Transport Adapter if profile already exists
+    // 8. Auto-start LAN Transport Adapter if profile already exists
     if (localProfile) {
       await initLanAdapter();
     }
@@ -237,6 +307,12 @@ if (!gotTheLock) {
       console.log('[SMOKE TEST] DPAPI safeStorage is available:', safeStorage.isEncryptionAvailable());
       console.log('[SMOKE TEST] SUCCESS. Quitting Electron.');
       (app as unknown as { isQuitting: boolean }).isQuitting = true;
+      if (transferService) {
+        transferService.destroy();
+      }
+      if (folderService) {
+        folderService.destroy();
+      }
       if (messagingService) {
         messagingService.destroy();
       }
@@ -267,6 +343,14 @@ if (!gotTheLock) {
   app.on('before-quit', async () => {
     (app as unknown as { isQuitting: boolean }).isQuitting = true;
     TrayManager.getInstance().destroy();
+    if (transferService) {
+      transferService.destroy();
+      transferService = null;
+    }
+    if (folderService) {
+      folderService.destroy();
+      folderService = null;
+    }
     if (messagingService) {
       messagingService.destroy();
       messagingService = null;

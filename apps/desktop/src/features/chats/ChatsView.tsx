@@ -21,6 +21,7 @@ import {
 import { useChatStore, ChatFilter } from '../../stores/chatStore';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useProfileStore } from '../../stores/profileStore';
+import { useTransferStore } from '../../stores/transferStore';
 import { CreateGroupModal } from './CreateGroupModal';
 import { NewDirectChatModal } from './NewDirectChatModal';
 import { DirectConnectModal } from '../devices/DirectConnectModal';
@@ -29,6 +30,7 @@ import { MessageItem, ConversationItem } from '@ipm/shared';
 export const ChatsView: React.FC = () => {
   const { profile } = useProfileStore();
   const { devices } = useDeviceStore();
+  const { selectAndSendFile } = useTransferStore();
   const {
     conversations,
     activeConversationId,
@@ -649,8 +651,14 @@ export const ChatsView: React.FC = () => {
               <div className="flex items-end gap-2 bg-background border border-input rounded-2xl p-2 focus-within:ring-1 focus-within:ring-primary">
                 <button
                   type="button"
+                  onClick={() => {
+                    const peerId = activeConv.peerDeviceId || (activeConv.memberDeviceIds && activeConv.memberDeviceIds[0]);
+                    if (peerId) {
+                      selectAndSendFile(activeConv.id, peerId);
+                    }
+                  }}
                   className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  title="Share File (Phase 5)"
+                  title="Share File"
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { NetworkEnvelope, DeviceInfo, DEFAULT_PORTS } from '@ipm/shared';
+import { randomUUID } from 'node:crypto';
+import { NetworkEnvelope, DeviceInfo, DEFAULT_PORTS, IpmEventType, IPM_PROTOCOL } from '@ipm/shared';
 import { generateSelfSignedCertificate, TlsCertificate } from '@ipm/security';
 import { TransportAdapter } from '../interfaces/TransportAdapter';
 import { TlsServer } from './TlsServer';
@@ -241,6 +242,29 @@ export class LanTransportAdapter extends EventEmitter implements TransportAdapte
 
   public async send(peerId: string, message: NetworkEnvelope): Promise<void> {
     await this.connectionPool.send(peerId, message);
+  }
+
+  /**
+   * Helper to construct a standard NetworkEnvelope and send it to a peer.
+   */
+  public async sendPayload(
+    peerId: string,
+    type: IpmEventType,
+    payload: Record<string, any>,
+    conversationId: string = 'global'
+  ): Promise<void> {
+    const envelope: NetworkEnvelope = {
+      protocol: IPM_PROTOCOL,
+      id: randomUUID(),
+      type,
+      senderId: this.localIdentity.deviceId,
+      receiverId: peerId,
+      conversationId,
+      timestamp: Date.now(),
+      sequence: 0,
+      payload,
+    };
+    await this.send(peerId, envelope);
   }
 
   public onMessage(callback: (message: NetworkEnvelope) => void): void {
