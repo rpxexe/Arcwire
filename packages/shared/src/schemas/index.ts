@@ -276,3 +276,59 @@ export const SystemInfoSchema = z.object({
   }),
 });
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
+
+// Private Chat Schemas (Phase 4)
+export const SetupUnlockCredentialInputSchema = z.object({
+  password: z.string().min(4, 'PIN or passphrase must be at least 4 characters').max(64),
+  recoveryHint: z.string().max(100).optional(),
+});
+export type SetupUnlockCredentialInput = z.infer<typeof SetupUnlockCredentialInputSchema>;
+
+export const UnlockPrivateInputSchema = z.object({
+  password: z.string().min(1, 'Password required'),
+});
+export type UnlockPrivateInput = z.infer<typeof UnlockPrivateInputSchema>;
+
+export const CreatePrivateConversationInputSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(100),
+});
+export type CreatePrivateConversationInput = z.infer<typeof CreatePrivateConversationInputSchema>;
+
+export const CreateInvitationInputSchema = z.object({
+  conversationId: z.string(),
+  maxUses: z.number().int().positive().default(1),
+  expiresInHours: z.number().int().positive().default(24),
+});
+export type CreateInvitationInput = z.infer<typeof CreateInvitationInputSchema>;
+
+export const RedeemInvitationInputSchema = z.object({
+  code: z.string().min(1, 'Invitation code required'),
+  peerDeviceId: z.string().optional(),
+});
+export type RedeemInvitationInput = z.infer<typeof RedeemInvitationInputSchema>;
+
+export const PrivateStatusSchema = z.object({
+  hasCredential: z.boolean(),
+  isUnlocked: z.boolean(),
+  lockedUntil: z.number().nullable().optional(),
+  failedAttempts: z.number(),
+  recoveryHint: z.string().nullable().optional(),
+});
+export type PrivateStatus = z.infer<typeof PrivateStatusSchema>;
+
+export const PrivateJoinRequestPayloadSchema = z.object({
+  codeHash: z.string(),
+  requestingDeviceId: z.string(),
+  publicKey: z.string(),
+  timestamp: z.number(),
+});
+export type PrivateJoinRequestPayload = z.infer<typeof PrivateJoinRequestPayloadSchema>;
+
+export const PrivateJoinAcceptedPayloadSchema = z.object({
+  conversationId: z.string(),
+  title: z.string(),
+  creatorDeviceId: z.string(),
+  sessionKeyCipher: z.string(),
+  timestamp: z.number(),
+});
+export type PrivateJoinAcceptedPayload = z.infer<typeof PrivateJoinAcceptedPayloadSchema>;

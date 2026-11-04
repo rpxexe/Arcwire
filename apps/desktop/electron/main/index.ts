@@ -11,11 +11,13 @@ import {
   ConversationRepository,
   MessageRepository,
   GroupRepository,
+  PrivateChatRepository,
 } from '@ipm/database';
 import { SecretKeyStore } from '@ipm/security';
 import { LanTransportAdapter } from '@ipm/networking';
 import { MessagingService } from '@ipm/messaging';
 import { DEFAULT_PORTS, IpcChannels } from '@ipm/shared';
+import { PrivateSessionManager } from '../services/PrivateSessionManager';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -29,6 +31,8 @@ if (!gotTheLock) {
   let conversationRepo: ConversationRepository | null = null;
   let messageRepo: MessageRepository | null = null;
   let groupRepo: GroupRepository | null = null;
+  let privateRepo: PrivateChatRepository | null = null;
+  let privateSession: PrivateSessionManager | null = null;
   let secretStore: SecretKeyStore | null = null;
   let lanAdapter: LanTransportAdapter | null = null;
   let messagingService: MessagingService | null = null;
@@ -113,12 +117,20 @@ if (!gotTheLock) {
         const currentSettings = settingsRepo?.getSettings();
         const shouldNotify = currentSettings?.notificationsEnabled ?? true;
         if (shouldNotify && win && !win.isFocused()) {
-          const sender = deviceRepo?.getDeviceById(msg.senderId);
-          const title = sender?.displayName || 'New Message';
-          new Notification({
-            title,
-            body: msg.content,
-          }).show();
+          const isPrivate = privateRepo?.isPrivateConversation(msg.conversationId) ?? false;
+          if (isPrivate) {
+            new Notification({
+              title: 'Arcwire Private Chat',
+              body: 'New secure private message received',
+            }).show();
+          } else {
+            const sender = deviceRepo?.getDeviceById(msg.senderId);
+            const title = sender?.displayName || 'New Message';
+            new Notification({
+              title,
+              body: msg.contentType === 'file' ? '[File Attachment]' : msg.content,
+            }).show();
+          }
         }
       });
 
@@ -175,12 +187,16 @@ if (!gotTheLock) {
     conversationRepo = new ConversationRepository(dbService);
     messageRepo = new MessageRepository(dbService);
     groupRepo = new GroupRepository(dbService);
+    privateRepo = new PrivateChatRepository(dbService);
 
     // 3. Initialize DPAPI Key Store
     secretStore = new SecretKeyStore({
       storageDir: paths.security,
       safeStorage,
     });
+
+    const localProfile = profileRepo.getProfile();
+    privateSession = new PrivateSessionManager(privateRepo, localProfile?.deviceId ?? '');
 
     // 4. Initialize Window Manager
     const windowManager = WindowManager.getInstance();
@@ -199,6 +215,8 @@ if (!gotTheLock) {
       conversationRepo,
       messageRepo,
       groupRepo,
+      privateRepo,
+      privateSession,
       secretStore,
       getMainWindow: () => windowManager.getMainWindow(),
       getLanAdapter: () => lanAdapter,
@@ -207,7 +225,7 @@ if (!gotTheLock) {
     });
 
     // 7. Auto-start LAN Transport Adapter if profile already exists
-    if (profileRepo.getProfile()) {
+    if (localProfile) {
       await initLanAdapter();
     }
 

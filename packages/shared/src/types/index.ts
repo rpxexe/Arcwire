@@ -11,6 +11,12 @@ import {
   SendMessageInput,
   CreateConversationInput,
   SearchMessagesInput,
+  SetupUnlockCredentialInput,
+  UnlockPrivateInput,
+  CreatePrivateConversationInput,
+  CreateInvitationInput,
+  RedeemInvitationInput,
+  PrivateStatus,
 } from '../schemas/index';
 
 export * from '../schemas/index';
@@ -74,6 +80,19 @@ export interface TypingEventData {
   isTyping: boolean;
 }
 
+export interface InvitationItem {
+  id: string;
+  code?: string;
+  codeHash: string;
+  conversationId: string;
+  creatorDeviceId: string;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: number;
+  isRevoked: boolean;
+  createdAt: number;
+}
+
 export interface IpcApi {
   // Window
   minimizeWindow: () => Promise<void>;
@@ -110,6 +129,18 @@ export interface IpcApi {
   sendTyping: (conversationId: string, isTyping: boolean) => Promise<void>;
   searchMessages: (input: SearchMessagesInput) => Promise<MessageItem[]>;
 
+  // Private Chat System (Phase 4)
+  getPrivateStatus: () => Promise<PrivateStatus>;
+  setupPrivateCredential: (input: SetupUnlockCredentialInput) => Promise<void>;
+  unlockPrivate: (input: UnlockPrivateInput) => Promise<{ success: boolean; error?: string; lockedUntil?: number | null }>;
+  lockPrivate: () => Promise<void>;
+  getPrivateConversations: () => Promise<ConversationItem[]>;
+  createPrivateConversation: (input: CreatePrivateConversationInput) => Promise<ConversationItem>;
+  createPrivateInvitation: (input: CreateInvitationInput) => Promise<{ code: string; expiresAt: number; id: string }>;
+  redeemPrivateInvitation: (input: RedeemInvitationInput) => Promise<ConversationItem>;
+  listPrivateInvitations: (conversationId: string) => Promise<InvitationItem[]>;
+  revokePrivateInvitation: (invitationId: string) => Promise<void>;
+
   // Listeners
   onNetworkStatusChange: (callback: (status: { online: boolean; ip?: string }) => void) => () => void;
   onDeviceDiscovered: (callback: (device: DeviceInfo) => void) => () => void;
@@ -118,6 +149,7 @@ export interface IpcApi {
   onMessageReceipt: (callback: (receipt: ReceiptEventData) => void) => () => void;
   onTypingIndicator: (callback: (typing: TypingEventData) => void) => () => void;
   onConversationUpdated: (callback: (conversation: ConversationItem) => void) => () => void;
+  onPrivateLockStateChange: (callback: (state: { isUnlocked: boolean; lockedUntil?: number | null }) => void) => () => void;
 }
 
 declare global {

@@ -45,6 +45,18 @@ const api: IpcApi = {
   sendTyping: (conversationId, isTyping) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND_TYPING, { conversationId, isTyping }),
   searchMessages: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEARCH, input),
 
+  // Private Chat System (Phase 4)
+  getPrivateStatus: () => ipcRenderer.invoke(IpcChannels.PRIVATE_STATUS),
+  setupPrivateCredential: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_SETUP_CREDENTIAL, input),
+  unlockPrivate: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_UNLOCK, input),
+  lockPrivate: () => ipcRenderer.invoke(IpcChannels.PRIVATE_LOCK),
+  getPrivateConversations: () => ipcRenderer.invoke(IpcChannels.PRIVATE_CONVERSATIONS_LIST),
+  createPrivateConversation: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_CONVERSATIONS_CREATE, input),
+  createPrivateInvitation: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATION_CREATE, input),
+  redeemPrivateInvitation: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATION_REDEEM, input),
+  listPrivateInvitations: (conversationId) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATIONS_LIST, conversationId),
+  revokePrivateInvitation: (invitationId) => ipcRenderer.invoke(IpcChannels.PRIVATE_INVITATION_REVOKE, invitationId),
+
   // Event Listeners
   onNetworkStatusChange: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { online: boolean; ip?: string }) => callback(data);
@@ -80,6 +92,11 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: ConversationItem) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_CONVERSATION_UPDATED, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_CONVERSATION_UPDATED, handler);
+  },
+  onPrivateLockStateChange: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { isUnlocked: boolean; lockedUntil?: number | null }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_PRIVATE_LOCK_STATE, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_PRIVATE_LOCK_STATE, handler);
   },
 };
 

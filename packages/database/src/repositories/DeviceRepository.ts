@@ -16,13 +16,14 @@ export class DeviceRepository {
     publicKey: string;
     displayName: string;
     hostname: string;
-    ipAddress: string;
-    tcpPort: number;
-    signalingPort: number;
-    status: UserStatus;
+    ipAddress?: string;
+    tcpPort?: number;
+    signalingPort?: number;
+    status?: UserStatus;
   }): DeviceInfo {
     const db = this.dbService.getDb();
     const now = Date.now();
+    const status = data.status || 'offline';
 
     db.insert(devices)
       .values({
@@ -31,7 +32,7 @@ export class DeviceRepository {
         displayName: data.displayName,
         hostname: data.hostname,
         lastSeen: now,
-        status: data.status,
+        status,
         createdAt: now,
         updatedAt: now,
       })
@@ -41,33 +42,35 @@ export class DeviceRepository {
           displayName: data.displayName,
           hostname: data.hostname,
           lastSeen: now,
-          status: data.status,
+          status,
           updatedAt: now,
         },
       })
       .run();
 
-    const addressId = `addr_${data.id}_${data.ipAddress.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    db.insert(deviceAddresses)
-      .values({
-        id: addressId,
-        deviceId: data.id,
-        ipAddress: data.ipAddress,
-        tcpPort: data.tcpPort,
-        signalingPort: data.signalingPort,
-        isReachable: 1,
-        lastConnectedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: deviceAddresses.id,
-        set: {
-          tcpPort: data.tcpPort,
-          signalingPort: data.signalingPort,
+    if (data.ipAddress) {
+      const addressId = `addr_${data.id}_${data.ipAddress.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      db.insert(deviceAddresses)
+        .values({
+          id: addressId,
+          deviceId: data.id,
+          ipAddress: data.ipAddress,
+          tcpPort: data.tcpPort ?? 45821,
+          signalingPort: data.signalingPort ?? 45822,
           isReachable: 1,
           lastConnectedAt: now,
-        },
-      })
-      .run();
+        })
+        .onConflictDoUpdate({
+          target: deviceAddresses.id,
+          set: {
+            tcpPort: data.tcpPort ?? 45821,
+            signalingPort: data.signalingPort ?? 45822,
+            isReachable: 1,
+            lastConnectedAt: now,
+          },
+        })
+        .run();
+    }
 
     const device = this.getDeviceById(data.id);
     if (!device) {

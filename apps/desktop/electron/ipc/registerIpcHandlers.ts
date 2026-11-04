@@ -10,6 +10,11 @@ import {
   CreateConversationInputSchema,
   CreateGroupInputSchema,
   SearchMessagesInputSchema,
+  SetupUnlockCredentialInputSchema,
+  UnlockPrivateInputSchema,
+  CreatePrivateConversationInputSchema,
+  CreateInvitationInputSchema,
+  RedeemInvitationInputSchema,
 } from '@ipm/shared';
 import { SystemInfoService } from '../services/SystemInfoService';
 import {
@@ -19,10 +24,12 @@ import {
   ConversationRepository,
   MessageRepository,
   GroupRepository,
+  PrivateChatRepository,
 } from '@ipm/database';
 import { SecretKeyStore, generateDeviceIdentity, deriveDeviceId } from '@ipm/security';
 import type { LanTransportAdapter } from '@ipm/networking';
 import type { MessagingService } from '@ipm/messaging';
+import type { PrivateSessionManager } from '../services/PrivateSessionManager';
 
 export interface IpcHandlerDependencies {
   profileRepo: ProfileRepository;
@@ -31,6 +38,8 @@ export interface IpcHandlerDependencies {
   conversationRepo: ConversationRepository;
   messageRepo: MessageRepository;
   groupRepo: GroupRepository;
+  privateRepo: PrivateChatRepository;
+  privateSession: PrivateSessionManager;
   secretStore: SecretKeyStore;
   getMainWindow: () => BrowserWindow | null;
   getLanAdapter: () => LanTransportAdapter | null;
@@ -45,6 +54,8 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     deviceRepo,
     conversationRepo,
     messageRepo,
+    privateRepo,
+    privateSession,
     secretStore,
     getMainWindow,
     getLanAdapter,
@@ -115,6 +126,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
       { deviceId, publicKey }
     );
 
+    privateSession.updateLocalDeviceId(deviceId);
     await initLanAdapter();
 
     return created;
@@ -182,13 +194,19 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.CONVERSATIONS_LIST, (_event, rawInput?: { includePrivate?: boolean }) => {
     const profile = profileRepo.getProfile();
     const localDeviceId = profile?.deviceId ?? '';
-    return conversationRepo.getConversations(localDeviceId, rawInput?.includePrivate ?? false);
+    // Enforce private isolation: only include private if explicitly authorized and unlocked
+    const includePrivate = Boolean(rawInput?.includePrivate && privateSession.isUnlocked());
+    return conversationRepo.getConversations(localDeviceId, includePrivate);
   });
 
   ipcMain.handle(IpcChannels.CONVERSATIONS_GET, (_event, conversationId: string) => {
+    const isPrivate = privateRepo.isPrivateConversation(conversationId);
+    if (isPrivate) {
+      privateSession.requireUnlocked();
+    }
     const profile = profileRepo.getProfile();
     const localDeviceId = profile?.deviceId ?? '';
-    return conversationRepo.getConversationById(conversationId, localDeviceId);
+    return conversationRepo.getConversationById(conversationId, localDeviceId, isPrivate);
   });
 
   ipcMain.handle(IpcChannels.CONVERSATIONS_CREATE_DIRECT, (_event, peerDeviceId: string) => {
@@ -220,6 +238,10 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   });
 
   ipcMain.handle(IpcChannels.MESSAGES_LIST, (_event, rawInput: { conversationId: string; limit?: number }) => {
+    const isPrivate = privateRepo.isPrivateConversation(rawInput.conversationId);
+    if (isPrivate) {
+      privateSession.requireUnlocked();
+    }
     return messageRepo.getMessages(rawInput.conversationId, rawInput.limit ?? 100);
   });
 
@@ -228,21 +250,26 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     const messaging = getMessagingService();
     if (!messaging) throw new Error('Messaging service not initialized');
 
+    const isPrivate = privateRepo.isPrivateConversation(input.conversationId);
+    if (isPrivate) {
+      privateSession.requireUnlocked();
+    }
+
     const profile = profileRepo.getProfile();
-    const conv = conversationRepo.getConversationById(input.conversationId, profile?.deviceId ?? '');
+    const conv = conversationRepo.getConversationById(input.conversationId, profile?.deviceId ?? '', isPrivate);
     if (!conv) throw new Error(`Conversation ${input.conversationId} not found`);
 
     if (conv.type === 'group') {
       return messaging.sendGroupMessage(conv.id, input.content, input.contentType);
     } else {
-      const peerId = conv.peerDeviceId;
-      if (!peerId) throw new Error('No peer ID found for direct conversation');
+      const peerId = conv.peerDeviceId || conv.memberDeviceIds?.find((id) => id !== profile?.deviceId);
+      if (!peerId) throw new Error('No peer ID found for conversation');
       return messaging.sendDirectMessage(
         conv.id,
         peerId,
         input.content,
         input.contentType,
-        input.isEncrypted,
+        input.isEncrypted || isPrivate,
         input.replyToId
       );
     }
@@ -264,6 +291,64 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
 
   ipcMain.handle(IpcChannels.MESSAGES_SEARCH, (_event, rawInput: unknown) => {
     const input = SearchMessagesInputSchema.parse(rawInput);
-    return messageRepo.searchMessages(input.query, input.conversationId);
+    const includePrivate = privateSession.isUnlocked();
+    return messageRepo.searchMessages(input.query, input.conversationId, includePrivate);
+  });
+
+  // ==========================================
+  // Private Chat System (Phase 4)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.PRIVATE_STATUS, () => {
+    return privateSession.getStatus();
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_SETUP_CREDENTIAL, async (_event, rawInput: unknown) => {
+    const input = SetupUnlockCredentialInputSchema.parse(rawInput);
+    await privateSession.setupCredential(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_UNLOCK, async (_event, rawInput: unknown) => {
+    const input = UnlockPrivateInputSchema.parse(rawInput);
+    return privateSession.unlock(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_LOCK, () => {
+    privateSession.lock();
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_CONVERSATIONS_LIST, () => {
+    return privateSession.getPrivateConversations();
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_CONVERSATIONS_CREATE, (_event, rawInput: unknown) => {
+    const input = CreatePrivateConversationInputSchema.parse(rawInput);
+    return privateSession.createPrivateConversation(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_INVITATION_CREATE, (_event, rawInput: unknown) => {
+    const input = CreateInvitationInputSchema.parse(rawInput);
+    return privateSession.createInvitation(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_INVITATION_REDEEM, (_event, rawInput: unknown) => {
+    const input = RedeemInvitationInputSchema.parse(rawInput);
+    return privateSession.redeemInvitation(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_INVITATIONS_LIST, (_event, conversationId: string) => {
+    return privateSession.listInvitations(conversationId);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_INVITATION_REVOKE, (_event, invitationId: string) => {
+    privateSession.revokeInvitation(invitationId);
+  });
+
+  // Listen to privateSession lock state changes and forward to renderer
+  privateSession.onStateChange((state) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.EVENT_PRIVATE_LOCK_STATE, state);
+    }
   });
 }
