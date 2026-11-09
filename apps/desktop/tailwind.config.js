@@ -20,6 +20,14 @@ module.exports = {
         mono: ['var(--font-outlier)', 'ui-monospace', 'monospace'],
       },
       colors: {
+        brand: {
+          abyss: '#05161A',
+          pine: '#072E33',
+          teal: '#0C7075',
+          cyan: '#0F969C',
+          glacier: '#6DA5C0',
+          slate: '#294D61',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

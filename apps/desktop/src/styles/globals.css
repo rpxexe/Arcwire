@@ -1,6 +1,6 @@
-/* Hallmark · shape: app screen · genre: modern-minimal · theme: Cobalt (by request) · redesign: full
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Deep Oceanic Teal (by request) · redesign: full
  * nav: sidebar shell · signature: real-time LAN peer mesh status · states: hover, active, focus-visible, disabled
- * axes: light/grotesk-sans/cool · posture: restrained · contrast: pass · v2.0.0 */
+ * axes: dark/grotesk-sans/cool · posture: restrained · contrast: pass · v2.0.0 */
 /* Hallmark · pre-emit critique: P9 H9 E9 S9 R9 V9 · weakest: desktop header, resolved with standard window drag region */
 @import url("./tokens.css");
 @import url("./base.css") layer(base);
@@ -11,66 +11,79 @@
 
 @layer base {
   :root {
-    --background: 220 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 195 30% 98%;
+    --foreground: 191 68% 6%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 191 68% 6%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 222 84% 54%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 216 28% 95%;
-    --secondary-foreground: 222 47% 15%;
-    --muted: 216 28% 95%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 216 28% 95%;
-    --accent-foreground: 222 47% 15%;
+    --popover-foreground: 191 68% 6%;
+    --primary: 183 81% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 200 30% 94%;
+    --secondary-foreground: 191 68% 6%;
+    --muted: 200 25% 94%;
+    --muted-foreground: 201 41% 32%;
+    --accent: 200 30% 92%;
+    --accent-foreground: 191 68% 6%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 216 20% 90%;
-    --input: 216 20% 90%;
-    --ring: 222 84% 54%;
+    --border: 183 35% 85%;
+    --input: 183 35% 85%;
+    --ring: 183 82% 34%;
     --radius: 0.5rem;
 
-    --sidebar-background: 220 18% 96%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 222 84% 54%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 216 24% 91%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 216 20% 88%;
-    --sidebar-ring: 222 84% 54%;
+    --sidebar-background: 195 25% 96%;
+    --sidebar-foreground: 191 68% 6%;
+    --sidebar-primary: 183 81% 25%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 28% 90%;
+    --sidebar-accent-foreground: 191 68% 6%;
+    --sidebar-border: 183 30% 88%;
+    --sidebar-ring: 183 82% 34%;
   }
 
   .dark {
-    --background: 222 36% 10%;
-    --foreground: 214 32% 95%;
-    --card: 224 40% 7%;
-    --card-foreground: 214 32% 95%;
-    --popover: 224 40% 7%;
-    --popover-foreground: 214 32% 95%;
-    --primary: 224 90% 62%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 222 28% 15%;
-    --secondary-foreground: 214 32% 95%;
-    --muted: 222 28% 15%;
-    --muted-foreground: 215 18% 65%;
-    --accent: 222 28% 15%;
-    --accent-foreground: 214 32% 95%;
+    /* 1. Abyss #05161A */
+    --background: 191 68% 6%;
+    --foreground: 195 45% 94%;
+
+    /* 2. Pine #072E33 */
+    --card: 187 76% 11%;
+    --card-foreground: 195 45% 94%;
+    --popover: 187 76% 11%;
+    --popover-foreground: 195 45% 94%;
+
+    /* 4. Cyan #0F969C */
+    --primary: 183 82% 34%;
+    --primary-foreground: 191 68% 6%;
+
+    /* 6. Slate navy #294D61 */
+    --secondary: 201 41% 27%;
+    --secondary-foreground: 195 45% 94%;
+    --muted: 201 41% 20%;
+    --accent: 201 41% 27%;
+    --accent-foreground: 195 45% 94%;
+
+    /* 5. Glacier sky #6DA5C0 */
+    --muted-foreground: 200 40% 65%;
+
     --destructive: 0 62% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 222 24% 18%;
-    --input: 222 24% 18%;
-    --ring: 224 90% 62%;
 
-    --sidebar-background: 224 42% 6%;
-    --sidebar-foreground: 214 32% 95%;
-    --sidebar-primary: 224 90% 62%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 28% 13%;
-    --sidebar-accent-foreground: 214 32% 95%;
-    --sidebar-border: 222 24% 14%;
-    --sidebar-ring: 224 90% 62%;
+    /* 3. Oceanic teal #0C7075 */
+    --border: 183 81% 25%;
+    --input: 183 81% 25%;
+    --ring: 183 82% 34%;
+
+    /* Sidebar surfaces */
+    --sidebar-background: 187 76% 9%;
+    --sidebar-foreground: 195 45% 94%;
+    --sidebar-primary: 183 82% 34%;
+    --sidebar-primary-foreground: 191 68% 6%;
+    --sidebar-accent: 201 41% 22%;
+    --sidebar-accent-foreground: 195 45% 94%;
+    --sidebar-border: 183 81% 20%;
+    --sidebar-ring: 183 82% 34%;
   }
 }
 
