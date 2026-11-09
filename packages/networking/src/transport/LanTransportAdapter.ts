@@ -1,13 +1,15 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import tls from 'node:tls';
 import { NetworkEnvelope, DeviceInfo, DEFAULT_PORTS, IpmEventType, IPM_PROTOCOL } from '@ipm/shared';
 import { generateSelfSignedCertificate, TlsCertificate } from '@ipm/security';
 import { TransportAdapter } from '../interfaces/TransportAdapter';
 import { TlsServer } from './TlsServer';
 import { ConnectionPool } from '../connection-manager/ConnectionPool';
 import { DiscoveryCoordinator, DevicePersister } from '../discovery/DiscoveryCoordinator';
-import { LocalIdentity } from '../authentication/HandshakeManager';
+import { LocalIdentity, HandshakeManager } from '../authentication/HandshakeManager';
 import { LocalDeviceMetadata } from '../discovery/UdpDiscoveryService';
+import { LanTransportConnection } from './LanTransportConnection';
 
 export interface LanTransportAdapterOptions {
   localIdentity: LocalIdentity;
@@ -158,12 +160,8 @@ export class LanTransportAdapter extends EventEmitter implements TransportAdapte
    * Executes TLS handshake and retrieves remote device identity.
    */
   public async connectDirect(ipAddress: string, port: number = DEFAULT_PORTS.TCP_MAIN): Promise<DeviceInfo> {
-    const tempConnection = await this.connectionPool.connectToPeer('*_direct', ipAddress, port, 8000).catch(async () => {
-      const tls = await import('node:tls');
-      const { LanTransportConnection } = await import('./LanTransportConnection');
-      const { HandshakeManager } = await import('../authentication/HandshakeManager');
-
-      return new Promise<import('./LanTransportConnection').LanTransportConnection>((resolve, reject) => {
+    const tempConnection = await this.connectionPool.connectToPeer('*_direct', ipAddress, port, 8000).catch(() => {
+      return new Promise<LanTransportConnection>((resolve, reject) => {
         const rawSocket = tls.connect(
           {
             host: ipAddress,

@@ -35,6 +35,9 @@ describe('Phase 8: Production Security Audit & Hardening Suite', () => {
           return Buffer.concat([iv, tag, encrypted]);
         },
         decryptString: (cipherBuffer: Buffer) => {
+          if (cipherBuffer.length < 28) {
+            throw new Error('Ciphertext buffer is too short to contain IV and authentication tag');
+          }
           const iv = cipherBuffer.subarray(0, 12);
           const tag = cipherBuffer.subarray(12, 28);
           const ciphertext = cipherBuffer.subarray(28);

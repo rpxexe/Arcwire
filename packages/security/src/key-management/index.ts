@@ -64,6 +64,9 @@ export class SecretKeyStore {
     if (this.safeStorage && this.safeStorage.isEncryptionAvailable()) {
       return this.safeStorage.decryptString(cipherBuffer);
     }
+    if (cipherBuffer.length < 28) {
+      throw new Error('Ciphertext buffer is too short to contain IV and authentication tag');
+    }
     const machineSalt = process.env.COMPUTERNAME || 'IPM_LOCAL_SALT';
     const key = crypto.createHash('sha256').update(machineSalt).digest();
     const iv = cipherBuffer.subarray(0, 12);
