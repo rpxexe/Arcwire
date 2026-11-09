@@ -88,21 +88,21 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-150 select-none">
+      <div className="w-full max-w-2xl bg-card border border-border rounded-lg shadow-md flex flex-col overflow-hidden max-h-[85vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-card/50 shrink-0">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Monitor className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-base text-foreground">
+            <h3 className="font-semibold text-base text-foreground">
               {isSwitching ? 'Switch Shared Screen' : 'Share Your Screen'}
             </h3>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleRefresh}
-              className={`p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
-                isRefreshing ? 'animate-spin' : ''
+              className={`p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150 ease-out ${
+                isRefreshing ? 'motion-safe:animate-spin' : ''
               }`}
               title="Refresh Windows & Displays"
             >
@@ -110,7 +110,7 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150 ease-out"
             >
               <X className="w-4 h-4" />
             </button>
@@ -118,7 +118,7 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
         </div>
 
         {/* Tab Buttons (Screens vs Windows) */}
-        <div className="px-6 pt-3 pb-2 flex items-center justify-between border-b border-border/50 bg-muted/20 shrink-0">
+        <div className="px-6 pt-3 pb-2 flex items-center justify-between border-b border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
@@ -126,7 +126,7 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
                 const first = screenSources[0];
                 if (first) setSelectedSourceId(first.id);
               }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                 activeTab === 'screen'
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -140,7 +140,7 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
                 const first = windowSources[0];
                 if (first) setSelectedSourceId(first.id);
               }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                 activeTab === 'window'
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -172,21 +172,21 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
                     key={source.id}
                     onClick={() => setSelectedSourceId(source.id)}
                     onDoubleClick={handleConfirmShare}
-                    className={`group relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col space-y-2 ${
+                    className={`group relative p-2 rounded-lg border transition-colors duration-150 ease-out cursor-pointer flex flex-col space-y-2 ${
                       isSelected
-                        ? 'border-primary bg-primary/5 ring-2 ring-primary/30 shadow-md'
-                        : 'border-border bg-card/60 hover:border-primary/50 hover:bg-muted/30'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary shadow-sm'
+                        : 'border-border bg-background hover:border-primary/50 hover:bg-muted/40'
                     }`}
                   >
                     {/* Thumbnail Preview */}
-                    <div className="w-full aspect-video bg-black/90 rounded-lg overflow-hidden flex items-center justify-center relative border border-border/40">
+                    <div className="w-full aspect-video bg-black rounded-md overflow-hidden flex items-center justify-center relative border border-border/40">
                       <img
                         src={source.thumbnail}
                         alt={source.name}
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        className="w-full h-full object-contain"
                       />
                       {isSelected && (
-                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md animate-in zoom-in-50">
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
                           <Check className="w-3 h-3 stroke-[3]" />
                         </div>
                       )}
@@ -216,16 +216,16 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
         <div className="px-6 py-3.5 bg-muted/30 border-t border-border flex flex-wrap items-center justify-between gap-4 shrink-0">
           {/* Preset Buttons */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <span className="text-xs font-medium text-muted-foreground">
               Quality:
             </span>
-            <div className="inline-flex rounded-lg bg-card border border-border p-0.5 shadow-xs">
+            <div className="inline-flex rounded-md bg-muted border border-border p-0.5 shadow-xs">
               <button
                 type="button"
                 onClick={() => setPreset('balanced')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-150 ease-out flex items-center gap-1 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                   preset === 'balanced'
-                    ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
                 title="1080p @ 30fps - Balanced performance"
@@ -235,9 +235,9 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPreset('smooth')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-150 ease-out flex items-center gap-1 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                   preset === 'smooth'
-                    ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
                 title="1080p @ 60fps - High framerate for video & motion"
@@ -247,9 +247,9 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPreset('crisp')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-150 ease-out flex items-center gap-1 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                   preset === 'crisp'
-                    ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
                 title="1080p @ 15fps - Razor sharp text for code & spreadsheets"
@@ -275,14 +275,14 @@ export const ScreenPickerModal: React.FC<ScreenPickerModalProps> = ({
           <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors"
+              className="px-3.5 py-1.5 rounded-md text-xs font-medium border border-border hover:bg-muted text-foreground transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirmShare}
               disabled={!selectedSourceId}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Monitor className="w-3.5 h-3.5" />
               {isSwitching ? 'Switch Screen' : 'Share Screen'}

@@ -213,7 +213,7 @@ export const FilesView: React.FC = () => {
           {/* Incoming Offers Alert */}
           {incomingOffers.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+              <h2 className="text-xs font-medium text-amber-500 flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4" /> Incoming File Transfer Requests ({incomingOffers.length})
               </h2>
               {incomingOffers.map((offer) => (
@@ -292,7 +292,7 @@ export const FilesView: React.FC = () => {
 
           {/* Active Transfers Section */}
           <div className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <h2 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <RefreshCw className="w-3.5 h-3.5" /> Active Transfers ({activeTransfers.length})
             </h2>
 
@@ -331,7 +331,7 @@ export const FilesView: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm text-foreground">{item.fileName}</span>
-                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
                                 {item.direction}
                               </span>
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
@@ -378,9 +378,9 @@ export const FilesView: React.FC = () => {
                       </div>
 
                       {/* Progress Bar */}
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
+                          className="bg-primary h-1.5 rounded-full"
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
@@ -399,7 +399,7 @@ export const FilesView: React.FC = () => {
 
           {/* Transfer History Table */}
           <div className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <h2 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <FileCheck className="w-3.5 h-3.5" /> Transfer History ({transferHistory.length})
             </h2>
 
@@ -438,7 +438,7 @@ export const FilesView: React.FC = () => {
                         </td>
                         <td className="p-3 text-muted-foreground">{formatBytes(item.fileSize)}</td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize ${
                             item.status === 'completed'
                               ? 'bg-emerald-500/20 text-emerald-500'
                               : item.status === 'failed'
@@ -544,7 +544,7 @@ export const FilesView: React.FC = () => {
                           {f.localPath}
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize ${
                             f.defaultPermission === 'full_control'
                               ? 'bg-purple-500/20 text-purple-500'
                               : f.defaultPermission === 'modify'
@@ -648,7 +648,7 @@ export const FilesView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground uppercase">
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground">
                       Permission: {remoteEffectivePermission.replace('_', ' ')}
                     </span>
 

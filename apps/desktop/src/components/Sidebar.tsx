@@ -81,11 +81,11 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-64 bg-sidebar border-r border-border flex flex-col justify-between select-none">
+    <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col justify-between select-none">
       {/* Navigation Links */}
       <div className="p-3 space-y-1">
-        <div className="px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-          Menu
+        <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          Navigation
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -98,7 +98,7 @@ export const Sidebar: React.FC = () => {
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.99] ${
                 isActive
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -110,11 +110,11 @@ export const Sidebar: React.FC = () => {
               </div>
               {item.badge && (
                 <span
-                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                  className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-normal ${
                     isActive
                       ? 'bg-primary-foreground/20 text-primary-foreground'
                       : item.id === 'private' && isUnlocked
-                      ? 'bg-emerald-500/10 text-emerald-500'
+                      ? 'bg-emerald-500/15 text-emerald-500'
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
@@ -128,10 +128,10 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Bottom Profile Bar */}
-      <div className="p-3 border-t border-border bg-sidebar/50">
+      <div className="p-3 border-t border-sidebar-border bg-sidebar">
         <button
           onClick={openProfileModal}
-          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors text-left group cursor-pointer"
+          className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-sidebar-accent transition-colors duration-150 ease-out text-left group cursor-pointer focus-visible:outline-2 focus-visible:outline-primary"
         >
           <div className="relative flex-shrink-0">
             <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-semibold text-primary text-xs">

@@ -57,8 +57,8 @@ export const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="h-screen w-screen bg-background flex flex-col items-center justify-center select-none text-muted-foreground gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-xs font-semibold tracking-wide">Initializing Arcwire LAN Engine...</span>
+        <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:opacity-75 text-primary" />
+        <span className="text-xs font-medium text-foreground">Initializing Arcwire LAN Engine…</span>
       </div>
     );
   }

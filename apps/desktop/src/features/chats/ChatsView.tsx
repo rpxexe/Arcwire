@@ -314,12 +314,12 @@ export const ChatsView: React.FC = () => {
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg text-xs font-medium">
+          <div className="flex items-center bg-muted p-0.5 rounded-md text-xs font-medium">
             {(['all', 'direct', 'groups'] as ChatFilter[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
-                className={`flex-1 py-1 rounded-md text-[11px] capitalize transition-all ${
+                className={`flex-1 py-1 rounded text-[11px] capitalize transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-primary ${
                   filterTab === tab
                     ? 'bg-background text-foreground shadow-xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -362,15 +362,15 @@ export const ChatsView: React.FC = () => {
           {/* LAN Peers matching username or IP search */}
           {matchingLanDevices.length > 0 && (
             <div className="p-2 border-b border-border bg-primary/5">
-              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <div className="px-2 py-1 text-xs font-medium text-muted-foreground flex items-center justify-between">
                 <span>LAN Peers ({matchingLanDevices.length})</span>
-                <span className="text-[10px] text-primary font-normal">Click Chat to message</span>
+                <span className="text-[11px] text-primary font-normal">Click Chat to message</span>
               </div>
               <div className="space-y-1 mt-1">
                 {matchingLanDevices.map((d) => (
                   <div
                     key={d.id}
-                    className="p-2 rounded-xl bg-card hover:bg-muted/60 border border-border/60 flex items-center justify-between gap-2 shadow-sm transition-all"
+                    className="p-2 rounded-md bg-card hover:bg-muted border border-border flex items-center justify-between gap-2 shadow-sm transition-colors duration-150 ease-out"
                   >
                     <div className="min-w-0 flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs shrink-0">
@@ -695,13 +695,13 @@ export const ChatsView: React.FC = () => {
             {/* Typing Indicator Banner */}
             {typingNames.length > 0 && (
               <div className="px-5 py-1 text-[11px] text-muted-foreground flex items-center gap-1.5 bg-card/20 border-t border-border/40">
-                <span className="flex gap-0.5 items-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
+                <span className="flex gap-1 items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary motion-safe:animate-pulse [animation-delay:200ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary motion-safe:animate-pulse [animation-delay:400ms]" />
                 </span>
                 <span>
-                  {typingNames.join(', ')} {typingNames.length > 1 ? 'are' : 'is'} typing...
+                  {typingNames.join(', ')} {typingNames.length > 1 ? 'are' : 'is'} typing…
                 </span>
               </div>
             )}

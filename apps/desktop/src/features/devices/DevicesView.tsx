@@ -159,22 +159,22 @@ export const DevicesView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground px-1">
-            <span>AVAILABLE PEERS ({remoteDevices.length})</span>
-            <span>ED25519 VERIFIED</span>
+          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-1">
+            <span>Available peers ({remoteDevices.length})</span>
+            <span>Ed25519 verified</span>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
             {remoteDevices.map((device) => (
               <div
                 key={device.id}
-                className="p-4 rounded-xl border border-border bg-card/50 hover:bg-card hover:border-primary/30 transition-all flex items-center justify-between"
+                className="p-4 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors duration-150 ease-out flex items-center justify-between"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-muted border border-border flex items-center justify-center text-foreground font-bold text-sm relative">
+                  <div className="w-10 h-10 rounded-md bg-muted border border-border flex items-center justify-center text-foreground font-medium text-sm relative">
                     <Laptop className="w-5 h-5 text-muted-foreground" />
                     <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${
+                      className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
                         device.status === 'online'
                           ? 'bg-emerald-500'
                           : device.status === 'busy'
@@ -188,7 +188,7 @@ export const DevicesView: React.FC = () => {
 
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-foreground">{device.displayName}</span>
+                      <span className="font-semibold text-sm text-foreground">{device.displayName}</span>
                       <span className="text-xs text-muted-foreground">({device.hostname})</span>
                       {getStatusBadge(device.status)}
                     </div>
@@ -199,7 +199,7 @@ export const DevicesView: React.FC = () => {
                       </span>
                       <span>•</span>
                       <span>
-                        ID: <span className="font-mono text-[11px] text-foreground">{device.id.slice(0, 16)}...</span>
+                        ID: <span className="font-mono text-[11px] text-foreground">{device.id.slice(0, 16)}…</span>
                       </span>
                       <span>•</span>
                       <span className="flex items-center gap-1">
@@ -214,7 +214,7 @@ export const DevicesView: React.FC = () => {
                   {/* Trust Verification Toggle */}
                   <button
                     onClick={() => toggleTrust(device.id, !device.isTrusted)}
-                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-md border text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
                       device.isTrusted
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20'
                         : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -235,8 +235,9 @@ export const DevicesView: React.FC = () => {
                   {/* Quick Action: Message */}
                   <button
                     onClick={() => handleStartChat(device.id)}
-                    className="p-2 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    className="p-2 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
                     title="Send Message"
+                    aria-label="Send Message"
                   >
                     <MessageSquare className="w-4 h-4" />
                   </button>
@@ -244,8 +245,9 @@ export const DevicesView: React.FC = () => {
                   {/* Quick Action: Files */}
                   <button
                     onClick={() => setActiveTab('files')}
-                    className="p-2 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    className="p-2 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
                     title="Share Files"
+                    aria-label="Share Files"
                   >
                     <FileText className="w-4 h-4" />
                   </button>
