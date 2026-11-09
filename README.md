@@ -219,38 +219,38 @@ IP Messenger enforces multi-tiered testing:
   - [x] Onboarding wizard: Windows username/hostname detection and profile customization.
   - [x] SQLite 3 database with WAL mode and 20 Drizzle ORM schema tables.
   - [x] Windows DPAPI protected key storage for Ed25519 device identities.
-- [ ] **Phase 2: LAN Networking & Discovery**
-  - [ ] Multi-interface detection (Wi-Fi + Ethernet).
-  - [ ] UDP Broadcast Discovery Service (Port 45820).
-  - [ ] mDNS service announcer & query responder.
-  - [ ] TLS 1.3 TCP Server & Connection Pool (Port 45821).
-  - [ ] Ed25519 mutual authentication handshake.
-  - [ ] Manual IP/Port direct connect dialog.
-- [ ] **Phase 3: Messaging Pipeline**
-  - [ ] 1-to-1 reliable direct messaging with deduplication.
-  - [ ] Distributed group messaging with temporary host and failover election.
-  - [ ] Delivery receipts (ACK, Delivered, Read).
-  - [ ] Offline message queue with automatic retry.
-- [ ] **Phase 4: Private Chats System**
-  - [ ] PRV-XXXX-XXXX invitation token generation & SHA-256 verification.
-  - [ ] Argon2id master unlock credentials with failed-attempt throttling.
-  - [ ] Application-level payload encryption (AES-256-GCM session ratchets).
-  - [ ] Strict query and UI isolation from standard chat views.
-- [ ] **Phase 5: File & Folder Sharing**
-  - [ ] 256 KB chunked streaming pipeline with sliding-window flow control.
-  - [ ] SHA-256 chunk and cumulative file verification.
-  - [ ] Drag-and-drop transfers with progress, speed, pause, and resume.
-  - [ ] Virtual LAN shared drive with path traversal defense and granular permissions.
-- [ ] **Phase 6: Voice & Video Calling**
-  - [ ] Local TCP signaling channel (Port 45822).
-  - [ ] WebRTC 1-to-1 voice and video calling.
-  - [ ] Audio/video device selectors, mute, and fullscreen.
-- [ ] **Phase 7: Screen Sharing**
-  - [ ] Electron `desktopCapturer` screen and window stream acquisition.
-  - [ ] Remote viewer display and source switcher.
-- [ ] **Phase 8: Production Hardening & Windows Installer**
-  - [ ] Automated NSIS Windows installer via `electron-builder`.
-  - [ ] Multi-PC LAN verification and performance benchmarking.
+- [x] **Phase 2: LAN Networking & Discovery**
+  - [x] Multi-interface detection (Wi-Fi + Ethernet).
+  - [x] UDP Broadcast Discovery Service (Port 45820).
+  - [x] mDNS service announcer & query responder.
+  - [x] TLS 1.3 TCP Server & Connection Pool (Port 45821).
+  - [x] Ed25519 mutual authentication handshake.
+  - [x] Manual IP/Port direct connect dialog.
+- [x] **Phase 3: Messaging Pipeline**
+  - [x] 1-to-1 reliable direct messaging with deduplication.
+  - [x] Distributed group messaging with temporary host and failover election.
+  - [x] Delivery receipts (ACK, Delivered, Read).
+  - [x] Offline message queue with automatic retry.
+- [x] **Phase 4: Private Chats System**
+  - [x] PRV-XXXX-XXXX invitation token generation & SHA-256 verification.
+  - [x] Argon2id master unlock credentials with failed-attempt throttling.
+  - [x] Application-level payload encryption (AES-256-GCM session ratchets).
+  - [x] Strict query and UI isolation from standard chat views.
+- [x] **Phase 5: File & Folder Sharing**
+  - [x] 256 KB chunked streaming pipeline with sliding-window flow control.
+  - [x] SHA-256 chunk and cumulative file verification.
+  - [x] Drag-and-drop transfers with progress, speed, pause, and resume.
+  - [x] Virtual LAN shared drive with path traversal defense and granular permissions.
+- [x] **Phase 6: Voice & Video Calling**
+  - [x] Local TCP signaling channel (Port 45822).
+  - [x] WebRTC 1-to-1 voice and video calling.
+  - [x] Audio/video device selectors, mute, and fullscreen.
+- [x] **Phase 7: Screen Sharing**
+  - [x] Electron `desktopCapturer` screen and window stream acquisition.
+  - [x] Remote viewer display and source switcher.
+- [x] **Phase 8: Production Hardening & Windows Installer**
+  - [x] Automated NSIS Windows installer via `electron-builder`.
+  - [x] Multi-PC LAN verification and performance benchmarking.
 
 ---
 
