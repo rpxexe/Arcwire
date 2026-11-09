@@ -71,6 +71,9 @@ export const CallOverlay: React.FC = () => {
   useEffect(() => {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
+      if (remoteStream) {
+        remoteVideoRef.current.muted = false;
+      }
     }
   }, [remoteStream]);
 
@@ -105,39 +108,41 @@ export const CallOverlay: React.FC = () => {
     const callerName = getPeerDisplayName(incomingCall.callerDeviceId);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-        <div className="w-full max-w-sm bg-card border border-border rounded-3xl p-6 shadow-2xl text-center space-y-6">
-          <div className="relative mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-200">
+        <div className="w-full max-w-sm bg-card border border-border rounded-xl p-6 shadow-md text-center space-y-6">
+          <div className="relative mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
             {incomingCall.callType === 'screen' ? (
-              <Monitor className="w-10 h-10 text-primary animate-bounce" />
+              <Monitor className="w-8 h-8 text-primary" />
             ) : incomingCall.callType === 'video' ? (
-              <Video className="w-10 h-10 text-primary animate-bounce" />
+              <Video className="w-8 h-8 text-primary" />
             ) : (
-              <Phone className="w-10 h-10 text-primary animate-bounce" />
+              <Phone className="w-8 h-8 text-primary" />
             )}
           </div>
 
           <div className="space-y-1">
-            <h3 className="font-bold text-lg text-foreground">{callerName}</h3>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-              Incoming {incomingCall.callType} Call...
+            <h3 className="font-semibold text-lg text-foreground">{callerName}</h3>
+            <p className="text-xs text-muted-foreground font-medium">
+              Incoming {incomingCall.callType} call…
             </p>
           </div>
 
           <div className="flex items-center justify-center gap-6 pt-2">
             <button
               onClick={rejectIncomingCall}
-              className="w-14 h-14 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center shadow-lg transition-transform hover:scale-105"
+              className="w-12 h-12 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center shadow-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-destructive active:scale-95"
               title="Decline"
+              aria-label="Decline Call"
             >
-              <PhoneOff className="w-6 h-6" />
+              <PhoneOff className="w-5 h-5" />
             </button>
             <button
               onClick={acceptIncomingCall}
-              className="w-14 h-14 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center shadow-lg transition-transform hover:scale-105"
+              className="w-12 h-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center shadow-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-emerald-500 active:scale-95"
               title="Accept"
+              aria-label="Accept Call"
             >
-              <Phone className="w-6 h-6" />
+              <Phone className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -158,10 +163,10 @@ export const CallOverlay: React.FC = () => {
 
   return (
     <div
-      className={`fixed z-50 transition-all duration-300 bg-background/95 backdrop-blur-xl border border-border flex flex-col overflow-hidden shadow-2xl ${
+      className={`fixed z-50 transition-opacity duration-150 ease-out bg-background border border-border flex flex-col overflow-hidden shadow-lg ${
         isFullscreen
-          ? 'inset-0 rounded-0'
-          : 'bottom-6 right-6 w-[560px] h-[420px] rounded-3xl'
+          ? 'inset-0 rounded-none'
+          : 'bottom-6 right-6 w-[560px] h-[420px] rounded-xl'
       }`}
     >
       {/* Top Presentation Notification Bar (when Local is Sharing) */}
@@ -200,26 +205,26 @@ export const CallOverlay: React.FC = () => {
               {remoteSourceName ? ` (${remoteSourceName})` : ''}
             </span>
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-black/15">
-            Remote Feed
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-black/15">
+            Remote feed
           </span>
         </div>
       )}
 
       {/* Call Header */}
-      <div className="p-3 bg-card/70 border-b border-border flex items-center justify-between shrink-0">
+      <div className="p-3 bg-card border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 motion-safe:animate-ping" />
           <div>
-            <h4 className="font-bold text-xs text-foreground truncate max-w-[200px]">{peerName}</h4>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+            <h4 className="font-semibold text-xs text-foreground truncate max-w-[200px]">{peerName}</h4>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <span className="capitalize">{callStatus}</span>
               <span>•</span>
-              <span>{formatDuration(durationSeconds)}</span>
+              <span className="font-mono">{formatDuration(durationSeconds)}</span>
               {isAnyScreenSharing && (
                 <>
                   <span>•</span>
-                  <span className="text-primary font-semibold">Screen Share</span>
+                  <span className="text-primary font-medium">Screen Share</span>
                 </>
               )}
             </div>
@@ -231,7 +236,7 @@ export const CallOverlay: React.FC = () => {
           {isAnyScreenSharing && (
             <button
               onClick={toggleFitToWindow}
-              className={`p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-muted ${
+              className={`p-1.5 rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-foreground hover:bg-muted ${
                 !isFitToWindow ? 'text-primary' : ''
               }`}
               title={isFitToWindow ? 'Switch to Original 100% Size' : 'Fit to Window'}
@@ -243,7 +248,7 @@ export const CallOverlay: React.FC = () => {
           {/* Diagnostics HUD Toggle */}
           <button
             onClick={() => setShowStatsHud(!showStatsHud)}
-            className={`p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-muted ${
+            className={`p-1.5 rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-foreground hover:bg-muted ${
               showStatsHud ? 'bg-primary/20 text-primary' : ''
             }`}
             title="Toggle Stream Statistics"
@@ -254,7 +259,7 @@ export const CallOverlay: React.FC = () => {
           {/* Fullscreen Toggle */}
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150 ease-out"
             title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen (F)'}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -269,6 +274,8 @@ export const CallOverlay: React.FC = () => {
           ref={remoteVideoRef}
           autoPlay
           playsInline
+          muted
+          poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
           className={`w-full h-full ${
             callType === 'voice' && !isAnyScreenSharing ? 'hidden' : 'block'
           } ${isFitToWindow ? 'object-contain' : 'object-none'}`}
@@ -277,27 +284,28 @@ export const CallOverlay: React.FC = () => {
         {/* Audio-only Visualizer Placeholder (when in Voice call without screen share) */}
         {callType === 'voice' && !isAnyScreenSharing && (
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-24 h-24 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-pulse">
-              <User className="w-12 h-12 text-primary" />
+            <div className="w-20 h-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <User className="w-10 h-10 text-primary" />
             </div>
             <div className="text-center space-y-1">
-              <span className="font-semibold text-sm text-white">{peerName}</span>
-              <p className="text-xs text-muted-foreground font-mono">LAN Peer Audio Connected</p>
+              <span className="font-medium text-sm text-white">{peerName}</span>
+              <p className="text-xs text-muted-foreground">LAN Peer Audio Connected</p>
             </div>
           </div>
         )}
 
         {/* Local Picture-in-Picture Preview (Local camera or screen feedback) */}
         {(callType !== 'voice' || isAnyScreenSharing) && (
-          <div className="absolute top-3 right-3 w-36 h-24 rounded-xl bg-black/80 border border-white/20 overflow-hidden shadow-2xl z-10 transition-transform hover:scale-105">
+          <div className="absolute top-3 right-3 w-36 h-24 rounded-lg bg-black border border-white/20 overflow-hidden shadow-md z-10">
             <video
               ref={localVideoRef}
               autoPlay
               playsInline
               muted
+              poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
               className="w-full h-full object-cover"
             />
-            <div className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-mono text-white/90">
+            <div className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/75 text-[10px] text-white">
               {isScreenSharing ? 'Your Screen' : 'You'}
             </div>
           </div>
@@ -305,9 +313,9 @@ export const CallOverlay: React.FC = () => {
 
         {/* Live Stream Statistics HUD */}
         {showStatsHud && stats && (
-          <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-white/20 rounded-xl p-2.5 text-[10px] font-mono text-emerald-400 space-y-1 z-20 shadow-xl pointer-events-none select-none">
-            <div className="flex items-center gap-1 font-bold text-white border-b border-white/10 pb-1">
-              <Activity className="w-3 h-3 text-emerald-400" /> WebRTC Stream Diagnostics
+          <div className="absolute top-3 left-3 bg-card/95 border border-border rounded-md p-2.5 text-[10px] font-mono text-emerald-500 space-y-1 z-20 shadow-md pointer-events-none select-none">
+            <div className="flex items-center gap-1 font-semibold text-foreground border-b border-border pb-1">
+              <Activity className="w-3 h-3 text-emerald-500" /> WebRTC Stream Diagnostics
             </div>
             <div>Resolution: <span className="text-white">{stats.resolution}</span></div>
             <div>Framerate: <span className="text-white">{stats.fps} FPS</span></div>

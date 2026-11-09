@@ -1,0 +1,67 @@
+:root {
+  color-scheme: light dark;
+
+  /* Arcwire 6-Color Brand System */
+  --color-abyss: #05161A;
+  --color-pine: #072E33;
+  --color-teal: #0C7075;
+  --color-cyan: #0F969C;
+  --color-glacier: #6DA5C0;
+  --color-slate: #294D61;
+
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem;
+  --text-display-s: 1.44rem; --text-display: 1.728rem; --text-section: 1.2rem; --text-title: 1rem; --text-lead: 1rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --color-error: oklch(52% 0.19 27); --color-success: oklch(50% 0.12 150);
+  --container: 1440px; --gutter: 64px; --gap-columns: 32px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* Hallmark Paper & Ink Roles */
+  --color-paper: #05161A;
+  --color-paper-2: #072E33;
+  --color-paper-3: #294D61;
+  --color-ink: #F0F7F9;
+  --color-ink-2: #6DA5C0;
+  --color-muted: #6DA5C0;
+  --color-rule: #0C7075;
+  --color-rule-2: #294D61;
+
+  --color-graphite: #072E33;
+  --color-graphite-2: #294D61;
+  --color-graphite-ink: #F0F7F9;
+  --color-graphite-muted: #6DA5C0;
+
+  --color-accent: #0F969C;
+  --color-accent-2: #0C7075;
+  --color-accent-wash: rgba(15, 150, 156, 0.15);
+  --color-accent-ink: #05161A;
+  --color-focus: #0F969C;
+  --color-accent-deep: #0C7075;
+  --color-accent-edge: #0C7075;
+
+  --color-glyph-1: #6DA5C0;
+  --color-glyph-2: #0F969C;
+  --color-glyph-3: #0C7075;
+  --color-glyph-4: #294D61;
+
+  --color-graphite-glyph-1: #072E33;
+  --color-graphite-glyph-2: #294D61;
+  --color-graphite-glyph-3: #0C7075;
+
+  --color-key-face: #072E33;
+  --color-key-edge: #0C7075;
+
+  --font-display: "Familjen Grotesk", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-outlier: "JetBrains Mono", ui-monospace, monospace;
+  --radius-card: 8px; --radius-input: 6px; --radius-pill: 999px;
+  --cell-w: 8px; --cell-h: 16px; --cut: 8px; --cut-l: 16px;
+  --rule-hair: 1px;
+  --shadow-card: 0 1px 2px rgba(5, 22, 26, 0.5);
+  --shadow-key: 0 3px 0 0 #0C7075, 0 6px 8px -4px rgba(5, 22, 26, 0.5);
+  --shadow-key-accent: 0 3px 0 0 #0C7075, 0 6px 8px -4px rgba(5, 22, 26, 0.5);
+  --shadow-key-press: inset 0 1px 2px rgba(5, 22, 26, 0.6);
+  --tracking-display: -0.028em; --display-weight: 600;
+}

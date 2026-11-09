@@ -67,15 +67,15 @@ export const SettingsView: React.FC = () => {
 
       {/* 1. Appearance / Theme */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Sun className="w-4 h-4 text-primary" /> Appearance
         </h2>
         <div className="grid grid-cols-3 gap-4">
           <button
             onClick={() => setTheme('light')}
-            className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all ${
+            className={`p-4 rounded-lg border flex flex-col items-center gap-3 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
               theme === 'light'
-                ? 'border-primary bg-primary/10 shadow-sm'
+                ? 'border-primary bg-primary/10 shadow-xs'
                 : 'border-border bg-card hover:border-primary/50 text-muted-foreground'
             }`}
           >
@@ -83,16 +83,16 @@ export const SettingsView: React.FC = () => {
               <Sun className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <span className="font-semibold text-sm text-foreground block">Light Theme</span>
-              <span className="text-xs text-muted-foreground">High contrast clean light</span>
+              <span className="font-semibold text-sm text-foreground block whitespace-nowrap">Light Theme</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">High contrast clean light</span>
             </div>
           </button>
 
           <button
             onClick={() => setTheme('dark')}
-            className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all ${
+            className={`p-4 rounded-lg border flex flex-col items-center gap-3 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
               theme === 'dark'
-                ? 'border-primary bg-primary/10 shadow-sm'
+                ? 'border-primary bg-primary/10 shadow-xs'
                 : 'border-border bg-card hover:border-primary/50 text-muted-foreground'
             }`}
           >
@@ -100,16 +100,16 @@ export const SettingsView: React.FC = () => {
               <Moon className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <span className="font-semibold text-sm text-foreground block">Dark Theme</span>
-              <span className="text-xs text-muted-foreground">OLED slate dark palette</span>
+              <span className="font-semibold text-sm text-foreground block whitespace-nowrap">Dark Theme</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">OLED slate dark palette</span>
             </div>
           </button>
 
           <button
             onClick={() => setTheme('system')}
-            className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all ${
+            className={`p-4 rounded-lg border flex flex-col items-center gap-3 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary ${
               theme === 'system'
-                ? 'border-primary bg-primary/10 shadow-sm'
+                ? 'border-primary bg-primary/10 shadow-xs'
                 : 'border-border bg-card hover:border-primary/50 text-muted-foreground'
             }`}
           >
@@ -117,8 +117,8 @@ export const SettingsView: React.FC = () => {
               <Laptop className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <span className="font-semibold text-sm text-foreground block">System Default</span>
-              <span className="text-xs text-muted-foreground">Syncs with Windows settings</span>
+              <span className="font-semibold text-sm text-foreground block whitespace-nowrap">System Default</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Syncs with Windows settings</span>
             </div>
           </button>
         </div>
@@ -126,23 +126,23 @@ export const SettingsView: React.FC = () => {
 
       {/* 2. Network Ports & Adapters */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Network className="w-4 h-4 text-primary" /> Networking Configuration
         </h2>
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
           <div className="grid grid-cols-3 gap-4 text-xs">
-            <div className="p-3 rounded-lg bg-muted/40 border border-border/80">
-              <span className="text-muted-foreground block text-[10px] uppercase font-semibold">UDP Discovery Port</span>
+            <div className="p-3 rounded-md bg-muted border border-border">
+              <span className="text-muted-foreground block text-[11px] font-medium">UDP Discovery Port</span>
               <span className="font-mono text-base font-bold text-foreground">45820</span>
               <span className="text-[11px] text-muted-foreground block mt-0.5">Broadcast beacon port</span>
             </div>
-            <div className="p-3 rounded-lg bg-muted/40 border border-border/80">
-              <span className="text-muted-foreground block text-[10px] uppercase font-semibold">TCP Core Messaging Port</span>
+            <div className="p-3 rounded-md bg-muted border border-border">
+              <span className="text-muted-foreground block text-[11px] font-medium">TCP Core Messaging Port</span>
               <span className="font-mono text-base font-bold text-foreground">45821</span>
               <span className="text-[11px] text-muted-foreground block mt-0.5">TLS encrypted stream</span>
             </div>
-            <div className="p-3 rounded-lg bg-muted/40 border border-border/80">
-              <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Local Signaling Port</span>
+            <div className="p-3 rounded-md bg-muted border border-border">
+              <span className="text-muted-foreground block text-[11px] font-medium">Local Signaling Port</span>
               <span className="font-mono text-base font-bold text-foreground">45822</span>
               <span className="text-[11px] text-muted-foreground block mt-0.5">WebRTC call negotiation</span>
             </div>
@@ -154,7 +154,7 @@ export const SettingsView: React.FC = () => {
               {systemInfo?.networkInterfaces.map((iface, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between p-2.5 rounded-lg bg-background border border-border text-xs"
+                  className="flex items-center justify-between p-2.5 rounded-md bg-background border border-border text-xs"
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -173,20 +173,20 @@ export const SettingsView: React.FC = () => {
 
       {/* 3. Storage Hierarchy */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Folder className="w-4 h-4 text-primary" /> Local Storage Locations
         </h2>
-        <div className="bg-card border border-border rounded-xl p-5 space-y-3 text-xs">
+        <div className="bg-card border border-border rounded-lg p-5 space-y-3 text-xs">
           <div>
-            <span className="text-muted-foreground block font-semibold text-[10px] uppercase">Database Location:</span>
+            <span className="text-muted-foreground block font-medium text-[11px]">Database Location:</span>
             <span className="font-mono text-foreground break-all select-all">{systemInfo?.paths.data}\ipm.db</span>
           </div>
           <div>
-            <span className="text-muted-foreground block font-semibold text-[10px] uppercase">Attachments Directory:</span>
+            <span className="text-muted-foreground block font-medium text-[11px]">Attachments Directory:</span>
             <span className="font-mono text-foreground break-all select-all">{systemInfo?.paths.attachments}</span>
           </div>
           <div>
-            <span className="text-muted-foreground block font-semibold text-[10px] uppercase">DPAPI Encrypted Secrets:</span>
+            <span className="text-muted-foreground block font-medium text-[11px]">DPAPI Encrypted Secrets:</span>
             <span className="font-mono text-foreground break-all select-all">{systemInfo?.paths.security}\identity.dat</span>
           </div>
         </div>
@@ -194,10 +194,10 @@ export const SettingsView: React.FC = () => {
 
       {/* 4. Desktop Behavior */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Shield className="w-4 h-4 text-primary" /> Application Lifecycle
         </h2>
-        <div className="bg-card border border-border rounded-xl divide-y divide-border">
+        <div className="bg-card border border-border rounded-lg divide-y divide-border">
           <div className="p-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">Minimize to System Tray on Close</p>

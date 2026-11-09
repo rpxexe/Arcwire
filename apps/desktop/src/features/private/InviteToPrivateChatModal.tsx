@@ -63,8 +63,8 @@ export const InviteToPrivateChatModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 select-none">
-      <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4 select-none">
+      <div className="w-full max-w-lg bg-card border border-border rounded-lg shadow-md p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-border">
           <div className="flex items-center gap-2.5">
@@ -138,27 +138,28 @@ export const InviteToPrivateChatModal: React.FC = () => {
             <button
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="w-full py-2 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary flex items-center justify-center gap-2 cursor-pointer"
             >
-              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+              {isGenerating ? <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" /> : <Key className="w-3.5 h-3.5" />}
               <span>Generate New PRV Token</span>
             </button>
 
             {/* Generated Code Display Card */}
             {generatedCode && (
-              <div className="mt-3 p-3.5 rounded-xl bg-card border-2 border-primary/30 space-y-2">
-                <div className="text-[11px] font-semibold text-primary uppercase tracking-wider flex items-center justify-between">
+              <div className="mt-3 p-3.5 rounded-md bg-muted border border-primary/30 space-y-2">
+                <div className="text-xs font-medium text-primary flex items-center justify-between">
                   <span>Share Token With Peer</span>
-                  <span className="text-[10px] text-muted-foreground">Expires in {expiresInHours}h</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Expires in {expiresInHours}h</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 p-2.5 rounded-lg bg-muted text-base font-mono font-bold text-center tracking-widest text-foreground select-all border border-border">
+                  <div className="flex-1 p-2 rounded-md bg-background text-sm font-mono font-medium text-center text-foreground select-all border border-border">
                     {generatedCode}
                   </div>
                   <button
                     onClick={handleCopy}
-                    className="p-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow flex items-center justify-center"
+                    className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150 ease-out shadow-sm flex items-center justify-center focus-visible:outline-2 focus-visible:outline-primary"
                     title="Copy code"
+                    aria-label="Copy code"
                   >
                     {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -192,7 +193,7 @@ export const InviteToPrivateChatModal: React.FC = () => {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-[11px] text-foreground font-semibold">
-                            Hash: {inv.codeHash.slice(0, 10)}...
+                            Hash: {inv.codeHash.slice(0, 10)}…
                           </span>
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${

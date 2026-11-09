@@ -56,8 +56,8 @@ export const DirectConnectModal: React.FC<DirectConnectModalProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 select-none">
+      <div className="w-full max-w-md bg-card border border-border rounded-lg shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -130,8 +130,8 @@ export const DirectConnectModal: React.FC<DirectConnectModalProps> = ({ isOpen, 
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Connecting...
+                  <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" />
+                  Connecting…
                 </>
               ) : (
                 'Connect Peer'

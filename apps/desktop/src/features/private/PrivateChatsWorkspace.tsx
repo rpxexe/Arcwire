@@ -154,13 +154,13 @@ export const PrivateChatsWorkspace: React.FC = () => {
               <div className="flex items-center justify-center gap-2 pt-1">
                 <button
                   onClick={() => setCreateModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-all cursor-pointer"
+                  className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium shadow-sm hover:bg-primary/90 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
                 >
                   Create Chat
                 </button>
                 <button
                   onClick={() => setJoinModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/80 transition-all cursor-pointer"
+                  className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
                 >
                   Join via Code
                 </button>
@@ -173,7 +173,7 @@ export const PrivateChatsWorkspace: React.FC = () => {
                 <button
                   key={conv.id}
                   onClick={() => selectConversation(conv.id)}
-                  className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 cursor-pointer ${
+                  className={`w-full text-left p-3 rounded-md transition-colors duration-150 ease-out flex items-start gap-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-primary ${
                     isSelected
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'hover:bg-muted/60 text-foreground'
@@ -306,15 +306,16 @@ export const PrivateChatsWorkspace: React.FC = () => {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type secure encrypted message..."
+                placeholder="Type secure encrypted message…"
                 disabled={isSending}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-muted/40 border border-border text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                className="flex-1 px-3 py-2 rounded-md bg-background border border-input text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors duration-150 ease-out"
               />
               <button
                 type="submit"
                 disabled={isSending || !inputText.trim()}
-                className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors shadow flex items-center justify-center cursor-pointer"
+                className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors duration-150 ease-out shadow-sm flex items-center justify-center cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
                 title="Send Message"
+                aria-label="Send Message"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -323,11 +324,11 @@ export const PrivateChatsWorkspace: React.FC = () => {
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
-            <Shield className="w-8 h-8" />
+          <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <Shield className="w-6 h-6" />
           </div>
           <div className="space-y-1 max-w-sm">
-            <h3 className="font-bold text-base text-foreground">Select or Create a Private Chat</h3>
+            <h3 className="font-semibold text-base text-foreground">Select or Create a Private Chat</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Private chats feature independent key exchange, separate notification masking, and strict cryptographic
               isolation.
@@ -336,13 +337,13 @@ export const PrivateChatsWorkspace: React.FC = () => {
           <div className="flex items-center gap-2.5 pt-2">
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-all cursor-pointer"
+              className="px-3.5 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium shadow-sm hover:bg-primary/90 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
             >
               Create New Chat
             </button>
             <button
               onClick={() => setJoinModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/80 transition-all cursor-pointer"
+              className="px-3.5 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors duration-150 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
             >
               Join via Code
             </button>

@@ -36,3 +36,7 @@ security/*.dat
 *.njsproj
 *.sln
 
+# Hallmark & Graphify local caches
+.hallmark/
+graphify-out/
+
