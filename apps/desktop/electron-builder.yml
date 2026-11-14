@@ -9,6 +9,8 @@ files:
   - resources/**/*
   - package.json
 asar: true
+# better-sqlite3 already has the Electron (ABI 132) prebuilt from scripts/setup-sqlite.ps1
+npmRebuild: false
 asarUnpack:
   - node_modules/better-sqlite3/**/*
   - node_modules/@node-rs/**/*

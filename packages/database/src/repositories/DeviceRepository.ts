@@ -49,6 +49,11 @@ export class DeviceRepository {
       .run();
 
     if (data.ipAddress) {
+      // The address a device just announced from is authoritative: demote all older ones
+      db.update(deviceAddresses)
+        .set({ isReachable: 0 })
+        .where(and(eq(deviceAddresses.deviceId, data.id), ne(deviceAddresses.ipAddress, data.ipAddress)))
+        .run();
       const addressId = `addr_${data.id}_${data.ipAddress.replace(/[^a-zA-Z0-9]/g, '_')}`;
       db.insert(deviceAddresses)
         .values({
@@ -88,6 +93,7 @@ export class DeviceRepository {
         .select()
         .from(deviceAddresses)
         .where(eq(deviceAddresses.deviceId, d.id))
+        .orderBy(desc(deviceAddresses.isReachable), desc(deviceAddresses.lastConnectedAt))
         .limit(1)
         .all()[0];
 
@@ -124,6 +130,7 @@ export class DeviceRepository {
       .select()
       .from(deviceAddresses)
       .where(eq(deviceAddresses.deviceId, d.id))
+      .orderBy(desc(deviceAddresses.isReachable), desc(deviceAddresses.lastConnectedAt))
       .limit(1)
       .all()[0];
 
@@ -191,6 +198,16 @@ export class DeviceRepository {
       })
       .where(eq(devices.id, deviceId))
       .run();
+  }
+
+  /** Marks every device (except the given ids) offline — called at startup before discovery runs. */
+  public markAllOffline(exceptIds: string[] = []): void {
+    const db = this.dbService.getDb();
+    const rows = db.select({ id: devices.id }).from(devices).where(ne(devices.status, 'offline')).all();
+    for (const r of rows) {
+      if (exceptIds.includes(r.id)) continue;
+      db.update(devices).set({ status: 'offline', updatedAt: Date.now() }).where(eq(devices.id, r.id)).run();
+    }
   }
 
   public markDevicesOfflineOlderThan(thresholdMs: number): string[] {

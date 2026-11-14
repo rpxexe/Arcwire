@@ -18,9 +18,9 @@ pnpm-debug.log*
 *.db-journal
 *.db-wal
 *.db-shm
-data/
-attachments/
-transfers/
+/data/
+/attachments/
+/transfers/
 security/*.dat
 
 # Environment

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, safeStorage, Notification } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { app, BrowserWindow, safeStorage, Notification, powerMonitor, protocol, net } from 'electron';
 import { AppPaths } from '../services/AppPaths';
 import { WindowManager } from '../services/WindowManager';
 import { TrayManager } from '../services/TrayManager';
@@ -58,6 +59,14 @@ process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] Unhandled Rejection:', reason);
   logCrash('UNHANDLED_REJECTION', reason);
 });
+
+// Privileged scheme used to preview transferred media (images/video/audio) inside chat bubbles.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'arcwire-media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: false },
+  },
+]);
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -178,8 +187,19 @@ if (!gotTheLock) {
           case IpmEventType.CALL_REJECT:
           case IpmEventType.CALL_END:
           case IpmEventType.CALL_SIGNAL:
+          case IpmEventType.SCREEN_SHARE_START:
+          case IpmEventType.SCREEN_SHARE_STOP:
             if (callService) {
               await callService.handleIncomingEnvelope(envelope);
+            }
+            break;
+
+          case IpmEventType.PRIVATE_JOIN_REQUEST:
+          case IpmEventType.PRIVATE_JOIN_ACCEPTED:
+          case IpmEventType.PRIVATE_JOIN_REJECTED:
+          case IpmEventType.PRIVATE_MEMBER_ADDED:
+            if (privateSession) {
+              await privateSession.handleIncomingEnvelope(envelope);
             }
             break;
 
@@ -188,7 +208,7 @@ if (!gotTheLock) {
             break;
         }
       } catch (err) {
-        console.error('[Main] Error handling network envelope in Phase 5 services:', err);
+        console.error('[Main] Error handling network envelope:', err);
       }
     });
 
@@ -209,16 +229,20 @@ if (!gotTheLock) {
 
       messagingService.on('messageReceived', (msg) => {
         const win = WindowManager.getInstance().getMainWindow();
-        if (win && !win.isDestroyed()) {
+        const isProtected = privateSession?.isProtectedConversation(msg.conversationId) ?? false;
+        const isUnlocked = privateSession?.isUnlocked() ?? false;
+
+        // Never push protected (private / locked) content to the renderer while locked.
+        if (win && !win.isDestroyed() && (!isProtected || isUnlocked)) {
           win.webContents.send(IpcChannels.EVENT_MESSAGE_RECEIVED, msg);
         }
 
         // Show Windows desktop notification if window is not focused
         const currentSettings = settingsRepo?.getSettings();
-        const shouldNotify = currentSettings?.notificationsEnabled ?? true;
+        const conv = conversationRepo?.getConversationById(msg.conversationId, profileRepo?.getProfile()?.deviceId ?? '', true);
+        const shouldNotify = (currentSettings?.notificationsEnabled ?? true) && !conv?.isMuted;
         if (shouldNotify && win && !win.isFocused()) {
-          const isPrivate = privateRepo?.isPrivateConversation(msg.conversationId) ?? false;
-          if (isPrivate) {
+          if (isProtected) {
             new Notification({
               title: 'Arcwire Private Chat',
               body: 'New secure private message received',
@@ -226,11 +250,24 @@ if (!gotTheLock) {
           } else {
             const sender = deviceRepo?.getDeviceById(msg.senderId);
             const title = sender?.displayName || 'New Message';
-            new Notification({
-              title,
-              body: msg.contentType === 'file' ? '[File Attachment]' : msg.content,
-            }).show();
+            let body = msg.content;
+            if (msg.contentType === 'file') {
+              try {
+                body = `Sent a file: ${JSON.parse(msg.content).fileName ?? 'attachment'}`;
+              } catch {
+                body = 'Sent a file';
+              }
+            }
+            new Notification({ title, body }).show();
           }
+        }
+      });
+
+      messagingService.on('messageUpdated', (msg) => {
+        const win = WindowManager.getInstance().getMainWindow();
+        const isProtected = privateSession?.isProtectedConversation(msg.conversationId) ?? false;
+        if (win && !win.isDestroyed() && (!isProtected || privateSession?.isUnlocked())) {
+          win.webContents.send(IpcChannels.EVENT_MESSAGE_UPDATED, msg);
         }
       });
 
@@ -251,14 +288,14 @@ if (!gotTheLock) {
       messagingService.on('groupCreated', () => {
         const win = WindowManager.getInstance().getMainWindow();
         if (win && !win.isDestroyed()) {
-          win.webContents.send(IpcChannels.EVENT_CONVERSATION_UPDATED);
+          win.webContents.send(IpcChannels.EVENT_CONVERSATION_UPDATED, null);
         }
       });
 
       messagingService.on('hostMigrated', () => {
         const win = WindowManager.getInstance().getMainWindow();
         if (win && !win.isDestroyed()) {
-          win.webContents.send(IpcChannels.EVENT_CONVERSATION_UPDATED);
+          win.webContents.send(IpcChannels.EVENT_CONVERSATION_UPDATED, null);
         }
       });
     }
@@ -322,12 +359,21 @@ if (!gotTheLock) {
     });
 
     const localProfile = profileRepo.getProfile();
-    privateSession = new PrivateSessionManager(privateRepo, localProfile?.deviceId ?? '');
+    privateSession = new PrivateSessionManager(privateRepo, localProfile?.deviceId ?? '', {
+      conversationRepo,
+      deviceRepo,
+      getLanAdapter: () => lanAdapter,
+    });
+
+    // Lock private chats whenever Windows is locked or the machine sleeps
+    powerMonitor.on('lock-screen', () => privateSession?.lock());
+    powerMonitor.on('suspend', () => privateSession?.lock());
 
     // 4. Initialize Phase 5 File Transfer & Folder Sharing Services
     transferService = new FileTransferService({
       localDeviceId: localProfile?.deviceId ?? '',
       transfersDir: paths.transfers,
+      downloadsDir: path.join(app.getPath('downloads'), 'Arcwire'),
       transferRepo,
       settingsRepo,
       getLanAdapter: () => lanAdapter,
@@ -345,6 +391,25 @@ if (!gotTheLock) {
       settingsRepo,
       getLanAdapter: () => lanAdapter,
       getMainWindow: () => windowManager.getMainWindow(),
+    });
+
+    // Serve previews for transferred media. Only files that belong to a known transfer
+    // (a received file, or the original file we sent) with a media extension are readable.
+    protocol.handle('arcwire-media', async (request) => {
+      try {
+        const url = new URL(request.url);
+        const transferId = decodeURIComponent(url.hostname || url.pathname.replace(/^\/+/, ''));
+        const transfer = transferRepo?.getTransferById(transferId);
+        const filePath = transfer?.finalPath;
+        const isMedia = /\.(png|jpe?g|gif|webp|bmp|svg|mp4|webm|mov|mp3|wav|ogg)$/i.test(filePath ?? '');
+        const ready = transfer && (transfer.direction === 'outgoing' || transfer.status === 'completed');
+        if (!filePath || !isMedia || !ready || !fs.existsSync(filePath)) {
+          return new Response('Not found', { status: 404 });
+        }
+        return net.fetch(pathToFileURL(filePath).toString());
+      } catch {
+        return new Response('Bad request', { status: 400 });
+      }
     });
 
     // 5. Initialize Window Manager
@@ -442,6 +507,9 @@ if (!gotTheLock) {
     if (callService) {
       callService.destroy();
       callService = null;
+    }
+    if (privateSession) {
+      privateSession.destroy();
     }
     if (messagingService) {
       messagingService.destroy();

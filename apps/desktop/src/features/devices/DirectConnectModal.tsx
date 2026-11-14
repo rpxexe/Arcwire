@@ -1,3 +1,4 @@
+import { cleanIpcError } from '../../stores/chatStore';
 import React, { useState } from 'react';
 import { X, Globe, AlertCircle, Loader2 } from 'lucide-react';
 import { useDeviceStore } from '../../stores/deviceStore';
@@ -51,7 +52,7 @@ export const DirectConnectModal: React.FC<DirectConnectModalProps> = ({ isOpen, 
       onClose();
     } catch (err) {
       setIsSubmitting(false);
-      setError(err instanceof Error ? err.message : 'Connection failed or timed out');
+      setError(err instanceof Error ? cleanIpcError(err) : 'Connection failed or timed out');
     }
   };
 

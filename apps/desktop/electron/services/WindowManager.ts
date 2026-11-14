@@ -100,14 +100,32 @@ export class WindowManager {
       }
     });
 
-    // 2. Strict media permission handler
-    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      if (permission === 'media') {
-        // Approve camera & microphone for WebRTC calls within our app
-        callback(true);
-        return;
-      }
-      callback(false);
+    // 2. Permission handling: only our own renderer may use camera/microphone/screen,
+    //    fullscreen and clipboard. Everything else is denied.
+    const allowed = new Set([
+      'media',
+      'display-capture',
+      'fullscreen',
+      'clipboard-read',
+      'clipboard-sanitized-write',
+      'notifications',
+      'speaker-selection',
+    ]);
+
+    const isOwnOrigin = (url: string | undefined): boolean => {
+      if (!url) return false;
+      if (url.startsWith('file://')) return true;
+      const devUrl = process.env['ELECTRON_RENDERER_URL'];
+      return Boolean(devUrl && url.startsWith(devUrl));
+    };
+
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+      const origin = (details as { requestingUrl?: string })?.requestingUrl ?? webContents.getURL();
+      callback(allowed.has(permission) && isOwnOrigin(origin));
+    });
+
+    session.defaultSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+      return allowed.has(permission) && (isOwnOrigin(requestingOrigin) || requestingOrigin === '' || requestingOrigin === 'null');
     });
   }
 }

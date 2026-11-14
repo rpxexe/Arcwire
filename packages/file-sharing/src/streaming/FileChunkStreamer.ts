@@ -44,6 +44,10 @@ export class FileChunkStreamer {
     try {
       const stat = await fileHandle.stat();
       const offset = chunkIndex * chunkSize;
+      if (stat.size === 0 && chunkIndex === 0) {
+        const empty = Buffer.alloc(0);
+        return { data: empty, chunkHash: crypto.createHash('sha256').update(empty).digest('hex') };
+      }
       if (offset >= stat.size) {
         throw new Error(`Chunk offset ${offset} exceeds file size ${stat.size}`);
       }
@@ -82,9 +86,11 @@ export class FileChunkStreamer {
       await fs.promises.mkdir(dir, { recursive: true });
     }
 
-    // Ensure file exists
+    // Ensure file exists without ever truncating data already written by another chunk
+    // ('a' creates the file if missing and never truncates).
     if (!fs.existsSync(tempFilePath)) {
-      await fs.promises.writeFile(tempFilePath, Buffer.alloc(0));
+      const created = await fs.promises.open(tempFilePath, 'a');
+      await created.close();
     }
 
     const fileHandle = await fs.promises.open(tempFilePath, 'r+');
@@ -101,7 +107,10 @@ export class FileChunkStreamer {
    * Verifies the complete assembled temporary file matches the global expected SHA-256 hash.
    */
   public static async verifyAssembledFile(tempFilePath: string, expectedFileHash: string): Promise<boolean> {
-    if (!fs.existsSync(tempFilePath)) return false;
+    if (!fs.existsSync(tempFilePath)) {
+      const emptyHash = crypto.createHash('sha256').update(Buffer.alloc(0)).digest('hex');
+      return expectedFileHash.toLowerCase() === emptyHash;
+    }
 
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('sha256');
@@ -119,7 +128,7 @@ export class FileChunkStreamer {
   /**
    * Atomically finalizes the temporary file by moving it to the destination path.
    */
-  public static async finalizeFile(tempFilePath: string, destinationFilePath: string): Promise<void> {
+  public static async finalizeFile(tempFilePath: string, destinationFilePath: string): Promise<string> {
     const destDir = path.dirname(destinationFilePath);
     if (!fs.existsSync(destDir)) {
       await fs.promises.mkdir(destDir, { recursive: true });
@@ -136,6 +145,12 @@ export class FileChunkStreamer {
       }
     }
 
+    if (!fs.existsSync(tempFilePath)) {
+      // Zero-byte transfers never write a chunk; materialise an empty file.
+      await fs.promises.writeFile(finalPath, Buffer.alloc(0));
+      return finalPath;
+    }
+
     try {
       await fs.promises.rename(tempFilePath, finalPath);
     } catch (err) {
@@ -143,6 +158,7 @@ export class FileChunkStreamer {
       await fs.promises.copyFile(tempFilePath, finalPath);
       await fs.promises.unlink(tempFilePath);
     }
+    return finalPath;
   }
 }
 

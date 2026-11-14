@@ -7,20 +7,55 @@ import {
   Video,
   VideoOff,
   Monitor,
+  MonitorOff,
   Maximize2,
   Minimize2,
   User,
   Activity,
-  Layers,
-  Sparkles,
   RefreshCw,
   Expand,
   Shrink,
+  AlertTriangle,
+  X,
+  Settings2,
 } from 'lucide-react';
 import { useCallStore } from '../../stores/callStore';
 import { useDeviceStore } from '../../stores/deviceStore';
+import { useProfileStore } from '../../stores/profileStore';
 import { ScreenPickerModal } from './ScreenPickerModal';
-import { ScreenShareOptions } from '@ipm/shared';
+import type { CallStreamStats } from '@ipm/shared';
+
+const formatDuration = (totalSeconds: number): string => {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatKbps = (kbps: number): string => (kbps >= 1000 ? `${(kbps / 1000).toFixed(1)} Mbps` : `${kbps} kbps`);
+
+const StreamRow: React.FC<{ label: string; s?: CallStreamStats | null }> = ({ label, s }) => (
+  <div className="grid grid-cols-[64px_1fr] gap-x-2">
+    <span className="text-muted-foreground">{label}</span>
+    {s ? (
+      <span className="text-foreground">
+        {s.resolution} · {s.fps} fps · {formatKbps(s.bitrateKbps)}
+        {s.codec ? ` · ${s.codec}` : ''}
+        {s.isScreen ? ' · screen' : ''}
+      </span>
+    ) : (
+      <span className="text-muted-foreground">no video</span>
+    )}
+  </div>
+);
+
+const statusLabel: Record<string, string> = {
+  idle: 'Idle',
+  'outgoing-ringing': 'Ringing…',
+  'incoming-ringing': 'Incoming…',
+  connecting: 'Connecting…',
+  connected: 'Connected',
+  ended: 'Ended',
+};
 
 export const CallOverlay: React.FC = () => {
   const {
@@ -33,26 +68,35 @@ export const CallOverlay: React.FC = () => {
     isVideoEnabled,
     isScreenSharing,
     isRemoteScreenSharing,
+    hasRemoteVideo,
     sharedSourceName,
     remoteSourceName,
     isFitToWindow,
     stats,
     isScreenPickerOpen,
+    pendingScreenCall,
     localStream,
     remoteStream,
+    error,
+    warning,
+    isLoading,
     acceptIncomingCall,
     rejectIncomingCall,
     endActiveCall,
     toggleMute,
     toggleVideo,
+    startCall,
     startScreenSharing,
     switchScreenSource,
     stopScreenSharing,
     setScreenPickerOpen,
+    cancelPendingScreenCall,
     toggleFitToWindow,
+    clearError,
   } = useCallStore();
 
   const { devices } = useDeviceStore();
+  const { profile } = useProfileStore();
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -60,53 +104,87 @@ export const CallOverlay: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStatsHud, setShowStatsHud] = useState(false);
 
-  // Attach local media stream to local preview
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
-    }
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
   }, [localStream]);
 
-  // Attach remote media stream to main video player
   useEffect(() => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
-      if (remoteStream) {
-        remoteVideoRef.current.muted = false;
-      }
-    }
-  }, [remoteStream]);
+    const el = remoteVideoRef.current;
+    if (!el) return;
+    el.srcObject = remoteStream;
+    el.muted = false;
+    if (remoteStream) el.play().catch(() => {});
+  }, [remoteStream, activeCall]);
 
-  // Fullscreen keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
-      } else if (e.key === 'f' || e.key === 'F') {
-        if (activeCall && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-          setIsFullscreen((prev) => !prev);
-        }
-      }
+      if (!activeCall) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
+      else if (e.key === 'f' || e.key === 'F') setIsFullscreen((prev) => !prev);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, activeCall]);
 
-  const formatDuration = (totalSeconds: number): string => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Auto-dismiss non-blocking notices
+  useEffect(() => {
+    if (!error && !warning) return;
+    const t = setTimeout(clearError, 9000);
+    return () => clearTimeout(t);
+  }, [error, warning, clearError]);
 
   const getPeerDisplayName = (peerId: string): string => {
     const device = devices.find((d) => d.id === peerId);
     return device?.displayName || peerId.slice(0, 8);
   };
 
-  // 1. Incoming Call Prompt Modal
+  const isPermissionMessage = (msg: string | null) => Boolean(msg && /Privacy|blocked/i.test(msg));
+
+  const noticeBanner = (msg: string | null, tone: 'error' | 'warning') =>
+    msg ? (
+      <div
+        role="alert"
+        className={`flex items-start gap-2 px-3 py-2 text-[11px] leading-snug ${
+          tone === 'error' ? 'bg-destructive/15 text-destructive' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+        }`}
+      >
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span className="flex-1">{msg}</span>
+        {isPermissionMessage(msg) && (
+          <button
+            onClick={() => window.api?.openPrivacySettings?.(/camera/i.test(msg) ? 'camera' : 'microphone')}
+            className="inline-flex items-center gap-1 underline underline-offset-2 shrink-0"
+          >
+            <Settings2 className="w-3 h-3" /> Open settings
+          </button>
+        )}
+        <button onClick={clearError} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    ) : null;
+
+  const picker = (
+    <ScreenPickerModal
+      isOpen={isScreenPickerOpen}
+      onClose={() => (pendingScreenCall ? cancelPendingScreenCall() : setScreenPickerOpen(false))}
+      isSwitching={isScreenSharing}
+      onSelectSource={(sourceId, options) => {
+        if (pendingScreenCall) {
+          void startCall(pendingScreenCall.conversationId, pendingScreenCall.receiverDeviceId, 'screen', sourceId, options);
+        } else if (isScreenSharing) {
+          void switchScreenSource(sourceId, options);
+        } else {
+          void startScreenSharing(sourceId, options);
+        }
+      }}
+    />
+  );
+
+  // 1. Incoming Call Prompt
   if (incomingCall && !activeCall) {
     const callerName = getPeerDisplayName(incomingCall.callerDeviceId);
-
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-200">
         <div className="w-full max-w-sm bg-card border border-border rounded-xl p-6 shadow-md text-center space-y-6">
@@ -123,7 +201,7 @@ export const CallOverlay: React.FC = () => {
           <div className="space-y-1">
             <h3 className="font-semibold text-lg text-foreground">{callerName}</h3>
             <p className="text-xs text-muted-foreground font-medium">
-              Incoming {incomingCall.callType} call…
+              {incomingCall.callType === 'screen' ? 'Wants to share their screen' : `Incoming ${incomingCall.callType} call…`}
             </p>
           </div>
 
@@ -132,15 +210,16 @@ export const CallOverlay: React.FC = () => {
               onClick={rejectIncomingCall}
               className="w-12 h-12 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center shadow-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-destructive active:scale-95"
               title="Decline"
-              aria-label="Decline Call"
+              aria-label="Decline call"
             >
               <PhoneOff className="w-5 h-5" />
             </button>
             <button
               onClick={acceptIncomingCall}
-              className="w-12 h-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center shadow-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-emerald-500 active:scale-95"
+              disabled={isLoading}
+              className="w-12 h-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center shadow-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-emerald-500 active:scale-95 disabled:opacity-60"
               title="Accept"
-              aria-label="Accept Call"
+              aria-label="Accept call"
             >
               <Phone className="w-5 h-5" />
             </button>
@@ -150,28 +229,36 @@ export const CallOverlay: React.FC = () => {
     );
   }
 
-  // 2. Active Call Floating / Fullscreen Overlay
-  if (!activeCall) return null;
+  // 2. No call: only the pre-call picker and any error toast
+  if (!activeCall) {
+    return (
+      <>
+        {picker}
+        {(error || warning) && (
+          <div className="fixed bottom-6 right-6 z-50 w-[380px] rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+            {noticeBanner(error, 'error')}
+            {noticeBanner(warning, 'warning')}
+          </div>
+        )}
+      </>
+    );
+  }
 
-  const peerId =
-    activeCall.callerDeviceId === devices[0]?.id
-      ? activeCall.receiverDeviceId
-      : activeCall.callerDeviceId;
+  const myId = profile?.deviceId;
+  const peerId = activeCall.callerDeviceId === myId ? activeCall.receiverDeviceId : activeCall.callerDeviceId;
   const peerName = getPeerDisplayName(peerId);
-
-  const isAnyScreenSharing = isScreenSharing || isRemoteScreenSharing || callType === 'screen';
+  const showRemoteVideo = hasRemoteVideo;
+  const showLocalPreview = Boolean(localStream && localStream.getVideoTracks().length > 0);
+  const isAnyScreenSharing = isScreenSharing || isRemoteScreenSharing;
 
   return (
     <div
       className={`fixed z-50 transition-opacity duration-150 ease-out bg-background border border-border flex flex-col overflow-hidden shadow-lg ${
-        isFullscreen
-          ? 'inset-0 rounded-none'
-          : 'bottom-6 right-6 w-[560px] h-[420px] rounded-xl'
+        isFullscreen ? 'inset-0 rounded-none' : 'bottom-6 right-6 w-[600px] h-[450px] rounded-xl'
       }`}
     >
-      {/* Top Presentation Notification Bar (when Local is Sharing) */}
       {isScreenSharing && (
-        <div className="bg-primary/95 text-primary-foreground px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0 animate-in slide-in-from-top-2">
+        <div className="bg-primary/95 text-primary-foreground px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0">
           <div className="flex items-center gap-2 truncate">
             <Monitor className="w-4 h-4 shrink-0" />
             <span className="truncate">
@@ -189,42 +276,42 @@ export const CallOverlay: React.FC = () => {
               onClick={stopScreenSharing}
               className="px-2.5 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-bold transition-colors"
             >
-              Stop Sharing
+              Stop sharing
             </button>
           </div>
         </div>
       )}
 
-      {/* Top Presentation Notification Bar (when Remote Peer is Sharing) */}
       {isRemoteScreenSharing && !isScreenSharing && (
-        <div className="bg-amber-500/90 text-black px-4 py-1.5 flex items-center justify-between text-xs font-semibold shrink-0 animate-in slide-in-from-top-2">
-          <div className="flex items-center gap-2 truncate">
-            <Monitor className="w-4 h-4 shrink-0" />
-            <span className="truncate">
-              <strong>{peerName}</strong> is sharing their screen
-              {remoteSourceName ? ` (${remoteSourceName})` : ''}
-            </span>
-          </div>
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-black/15">
-            Remote feed
+        <div className="bg-amber-500/90 text-black px-4 py-1.5 flex items-center gap-2 text-xs font-semibold shrink-0 truncate">
+          <Monitor className="w-4 h-4 shrink-0" />
+          <span className="truncate">
+            <strong>{peerName}</strong> is sharing their screen{remoteSourceName ? ` (${remoteSourceName})` : ''}
           </span>
         </div>
       )}
 
-      {/* Call Header */}
+      {noticeBanner(error, 'error')}
+      {noticeBanner(warning, 'warning')}
+
+      {/* Header */}
       <div className="p-3 bg-card border-b border-border flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 motion-safe:animate-ping" />
-          <div>
-            <h4 className="font-semibold text-xs text-foreground truncate max-w-[200px]">{peerName}</h4>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              callStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500 motion-safe:animate-pulse'
+            }`}
+          />
+          <div className="min-w-0">
+            <h4 className="font-semibold text-xs text-foreground truncate max-w-[240px]">{peerName}</h4>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="capitalize">{callStatus}</span>
+              <span>{statusLabel[callStatus] ?? callStatus}</span>
               <span>•</span>
               <span className="font-mono">{formatDuration(durationSeconds)}</span>
               {isAnyScreenSharing && (
                 <>
                   <span>•</span>
-                  <span className="text-primary font-medium">Screen Share</span>
+                  <span className="text-primary font-medium">Screen share</span>
                 </>
               )}
             </div>
@@ -232,170 +319,150 @@ export const CallOverlay: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Fit to Window Toggle (only during Screen Share) */}
-          {isAnyScreenSharing && (
+          {showRemoteVideo && (
             <button
               onClick={toggleFitToWindow}
-              className={`p-1.5 rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-foreground hover:bg-muted ${
-                !isFitToWindow ? 'text-primary' : ''
+              className={`p-1.5 rounded-md transition-colors duration-150 ease-out hover:bg-muted ${
+                !isFitToWindow ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
-              title={isFitToWindow ? 'Switch to Original 100% Size' : 'Fit to Window'}
+              title={isFitToWindow ? 'Show at original size' : 'Fit to window'}
             >
               {isFitToWindow ? <Shrink className="w-3.5 h-3.5" /> : <Expand className="w-3.5 h-3.5" />}
             </button>
           )}
-
-          {/* Diagnostics HUD Toggle */}
           <button
             onClick={() => setShowStatsHud(!showStatsHud)}
-            className={`p-1.5 rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-foreground hover:bg-muted ${
-              showStatsHud ? 'bg-primary/20 text-primary' : ''
+            className={`p-1.5 rounded-md transition-colors duration-150 ease-out hover:bg-muted ${
+              showStatsHud ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'
             }`}
-            title="Toggle Stream Statistics"
+            title="Stream statistics"
           >
             <Activity className="w-3.5 h-3.5" />
           </button>
-
-          {/* Fullscreen Toggle */}
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150 ease-out"
-            title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen (F)'}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (F)'}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* Main Video / Screen Stage */}
+      {/* Stage */}
       <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-        {/* Remote Video Player */}
+        {/* Always mounted so remote audio plays even without video */}
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
-          muted
-          poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
-          className={`w-full h-full ${
-            callType === 'voice' && !isAnyScreenSharing ? 'hidden' : 'block'
-          } ${isFitToWindow ? 'object-contain' : 'object-none'}`}
+          className={`w-full h-full ${showRemoteVideo ? 'block' : 'hidden'} ${
+            isFitToWindow ? 'object-contain' : 'object-none'
+          }`}
         />
 
-        {/* Audio-only Visualizer Placeholder (when in Voice call without screen share) */}
-        {callType === 'voice' && !isAnyScreenSharing && (
+        {!showRemoteVideo && (
           <div className="flex flex-col items-center justify-center space-y-4">
             <div className="w-20 h-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
               <User className="w-10 h-10 text-primary" />
             </div>
             <div className="text-center space-y-1">
               <span className="font-medium text-sm text-white">{peerName}</span>
-              <p className="text-xs text-muted-foreground">LAN Peer Audio Connected</p>
+              <p className="text-xs text-white/60">
+                {callStatus === 'connected'
+                  ? callType === 'video'
+                    ? 'Camera is off'
+                    : 'Audio connected'
+                  : statusLabel[callStatus]}
+              </p>
             </div>
           </div>
         )}
 
-        {/* Local Picture-in-Picture Preview (Local camera or screen feedback) */}
-        {(callType !== 'voice' || isAnyScreenSharing) && (
-          <div className="absolute top-3 right-3 w-36 h-24 rounded-lg bg-black border border-white/20 overflow-hidden shadow-md z-10">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
-              className="w-full h-full object-cover"
-            />
+        {showLocalPreview && (
+          <div className="absolute top-3 right-3 w-40 h-[90px] rounded-lg bg-black border border-white/20 overflow-hidden shadow-md z-10">
+            <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             <div className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/75 text-[10px] text-white">
-              {isScreenSharing ? 'Your Screen' : 'You'}
+              {isScreenSharing ? 'Your screen' : 'You'}
             </div>
           </div>
         )}
 
-        {/* Live Stream Statistics HUD */}
-        {showStatsHud && stats && (
-          <div className="absolute top-3 left-3 bg-card/95 border border-border rounded-md p-2.5 text-[10px] font-mono text-emerald-500 space-y-1 z-20 shadow-md pointer-events-none select-none">
+        {showStatsHud && (
+          <div className="absolute top-3 left-3 max-w-[calc(100%-200px)] bg-card/95 border border-border rounded-md p-2.5 text-[10px] font-mono space-y-1 z-20 shadow-md pointer-events-none select-none">
             <div className="flex items-center gap-1 font-semibold text-foreground border-b border-border pb-1">
-              <Activity className="w-3 h-3 text-emerald-500" /> WebRTC Stream Diagnostics
+              <Activity className="w-3 h-3 text-primary" /> Stream statistics
             </div>
-            <div>Resolution: <span className="text-white">{stats.resolution}</span></div>
-            <div>Framerate: <span className="text-white">{stats.fps} FPS</span></div>
-            <div>Bitrate: <span className="text-white">{stats.bitrateKbps} kbps</span></div>
-            <div>Packet Loss: <span className="text-white">{stats.packetLossPercentage}%</span></div>
-            <div>Latency: <span className="text-white">{stats.latencyMs} ms</span></div>
+            {stats ? (
+              <>
+                <StreamRow label="Sending" s={stats.outbound} />
+                <StreamRow label="Receiving" s={stats.inbound} />
+                <div className="grid grid-cols-[64px_1fr] gap-x-2">
+                  <span className="text-muted-foreground">Audio</span>
+                  <span className="text-foreground">{formatKbps(stats.audioBitrateKbps ?? 0)}</span>
+                </div>
+                <div className="grid grid-cols-[64px_1fr] gap-x-2">
+                  <span className="text-muted-foreground">Network</span>
+                  <span className="text-foreground">
+                    {stats.latencyMs !== undefined ? `${stats.latencyMs} ms RTT` : 'RTT n/a'} · {stats.packetLossPercentage}% loss
+                    {stats.jitterMs !== undefined ? ` · ${stats.jitterMs} ms jitter` : ''}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-muted-foreground">
+                {callStatus === 'connected' ? 'Collecting statistics…' : 'Available once the call connects'}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Call Controls Toolbar */}
+      {/* Controls */}
       <div className="p-3 bg-card/90 border-t border-border flex items-center justify-center gap-3 shrink-0">
-        {/* Mic Toggle */}
         <button
           onClick={toggleMute}
           className={`p-3 rounded-full transition-colors ${
-            isMuted
-              ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-              : 'bg-muted hover:bg-muted/80 text-foreground'
+            isMuted ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' : 'bg-muted hover:bg-muted/80 text-foreground'
           }`}
-          title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+          title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+          aria-pressed={isMuted}
         >
           {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
 
-        {/* Camera Toggle */}
         <button
-          onClick={toggleVideo}
+          onClick={() => void toggleVideo()}
           className={`p-3 rounded-full transition-colors ${
-            !isVideoEnabled
-              ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-              : 'bg-muted hover:bg-muted/80 text-foreground'
+            !isVideoEnabled ? 'bg-muted hover:bg-muted/80 text-muted-foreground' : 'bg-muted hover:bg-muted/80 text-foreground'
           }`}
-          title={isVideoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+          title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
+          aria-pressed={isVideoEnabled}
         >
           {isVideoEnabled ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
         </button>
 
-        {/* Screen Share Button */}
         <button
-          onClick={() => {
-            if (isScreenSharing) {
-              stopScreenSharing();
-            } else {
-              setScreenPickerOpen(true);
-            }
-          }}
+          onClick={() => (isScreenSharing ? void stopScreenSharing() : setScreenPickerOpen(true))}
           className={`p-3 rounded-full transition-colors ${
-            isScreenSharing
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md'
-              : 'bg-muted hover:bg-muted/80 text-foreground'
+            isScreenSharing ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'
           }`}
-          title={isScreenSharing ? 'Stop Screen Sharing' : 'Share Screen'}
+          title={isScreenSharing ? 'Stop screen sharing' : 'Share screen'}
+          aria-pressed={isScreenSharing}
         >
-          <Monitor className="w-4 h-4" />
+          {isScreenSharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
         </button>
 
-        {/* Hang Up Button */}
         <button
-          onClick={endActiveCall}
-          className="p-3 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md transition-transform hover:scale-105"
-          title="End Call"
+          onClick={() => void endActiveCall('hangup')}
+          className="p-3 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md transition-colors"
+          title="End call"
         >
           <PhoneOff className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Dedicated Screen & Window Source Picker Modal */}
-      <ScreenPickerModal
-        isOpen={isScreenPickerOpen}
-        onClose={() => setScreenPickerOpen(false)}
-        isSwitching={isScreenSharing}
-        onSelectSource={(sourceId, options) => {
-          if (isScreenSharing) {
-            switchScreenSource(sourceId, options);
-          } else {
-            startScreenSharing(sourceId, options);
-          }
-        }}
-      />
+      {picker}
     </div>
   );
 };

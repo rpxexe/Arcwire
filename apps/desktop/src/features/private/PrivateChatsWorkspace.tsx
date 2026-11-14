@@ -19,6 +19,12 @@ import { useProfileStore } from '../../stores/profileStore';
 import { CreatePrivateChatModal } from './CreatePrivateChatModal';
 import { InviteToPrivateChatModal } from './InviteToPrivateChatModal';
 import { JoinPrivateChatModal } from './JoinPrivateChatModal';
+import { MessageBubble } from '../chats/MessageBubble';
+import { MessageComposer, ComposerHandle, StagedFile } from '../chats/MessageComposer';
+import { useDeviceStore } from '../../stores/deviceStore';
+import { filesToUploads } from '@/lib/messageUtils';
+import type { MessageItem } from '@ipm/shared';
+import { Unlock, Trash2, AlertTriangle, X } from 'lucide-react';
 
 export const PrivateChatsWorkspace: React.FC = () => {
   const {
@@ -32,11 +38,35 @@ export const PrivateChatsWorkspace: React.FC = () => {
     setInviteModalOpen,
     setJoinModalOpen,
     isSending,
+    error,
+    setError,
+    sendFiles,
+    deleteMessage,
+    editMessage,
+    reactToMessage,
+    setMessageFlags,
+    unlockChat,
+    deleteConversation,
   } = usePrivateChatStore();
 
   const { profile } = useProfileStore();
-  const [inputText, setInputText] = useState('');
+  const { devices } = useDeviceStore();
+  const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
+  const [editing, setEditing] = useState<MessageItem | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<ComposerHandle>(null);
+  const localDeviceId = profile?.deviceId ?? '';
+
+  const getName = (deviceId: string) => {
+    if (deviceId === localDeviceId) return profile ? `${profile.displayName} (You)` : 'You';
+    return devices.find((d) => d.id === deviceId)?.displayName ?? `Device ${deviceId.slice(0, 8)}`;
+  };
+
+  const handleSendFiles = async (files: StagedFile[], caption: string) => {
+    const fromPaths = files.filter((f) => f.path).map((f) => ({ path: f.path!, name: f.name, type: f.type }));
+    const inMemory = await filesToUploads(files.filter((f) => !f.path && f.file).map((f) => f.file!), () => '');
+    await sendFiles([...fromPaths, ...inMemory], caption || undefined);
+  };
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] || [] : [];
@@ -46,21 +76,11 @@ export const PrivateChatsWorkspace: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages.length]);
 
-  const handleSend = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!inputText.trim() || isSending) return;
+  useEffect(() => {
+    setReplyingTo(null);
+    setEditing(null);
+  }, [activeConversationId]);
 
-    const text = inputText;
-    setInputText('');
-    await sendMessage(text);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   const formatTime = (ts: number) => {
     const d = new Date(ts);
@@ -235,7 +255,7 @@ export const PrivateChatsWorkspace: React.FC = () => {
                   <span>{activeConv.title}</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-semibold border border-emerald-500/20 flex items-center gap-1">
                     <LockKeyhole className="w-2.5 h-2.5" />
-                    AES-256-GCM
+                    {activeConv.type === 'private' ? 'AES-256-GCM' : 'Locked chat'}
                   </span>
                 </h3>
                 <span className="text-[11px] text-muted-foreground">
@@ -245,12 +265,35 @@ export const PrivateChatsWorkspace: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {activeConv.type === 'private' ? (
+                <button
+                  onClick={() => setInviteModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Invite peer</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => unlockChat(activeConv.id)}
+                  className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Move this chat back to the normal chat list"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Unlock chat</span>
+                </button>
+              )}
               <button
-                onClick={() => setInviteModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                onClick={() => {
+                  if (window.confirm(`Delete "${activeConv.title}" and its messages from this device?`)) {
+                    void deleteConversation(activeConv.id);
+                  }
+                }}
+                className="p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Delete chat"
+                aria-label="Delete chat"
               >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Invite Peer</span>
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -269,57 +312,81 @@ export const PrivateChatsWorkspace: React.FC = () => {
                 </p>
               </div>
             ) : (
-              activeMessages.map((msg) => {
-                const isMine = msg.senderId === profile?.deviceId;
-
-                return (
-                  <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                    <div
-                      className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm text-xs space-y-1 relative group ${
-                        isMine
-                          ? 'bg-primary text-primary-foreground rounded-tr-xs'
-                          : 'bg-card border border-border text-foreground rounded-tl-xs'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
-                      <div
-                        className={`flex items-center gap-1 text-[10px] justify-end ${
-                          isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                        }`}
-                      >
-                        <span>{formatTime(msg.sentAt)}</span>
-                        {isMine && renderReceipt(msg.deliveryStatus)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              activeMessages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isMe={msg.senderId === localDeviceId}
+                  localDeviceId={localDeviceId}
+                  senderName={
+                    msg.senderId !== localDeviceId && (activeConv.memberDeviceIds?.length ?? 0) > 2
+                      ? getName(msg.senderId)
+                      : undefined
+                  }
+                  replyTarget={msg.replyToId ? activeMessages.find((m) => m.id === msg.replyToId) ?? null : null}
+                  getName={getName}
+                  onReply={(m) => {
+                    setEditing(null);
+                    setReplyingTo(m);
+                  }}
+                  onEdit={(m) => {
+                    setReplyingTo(null);
+                    setEditing(m);
+                  }}
+                  onForward={() => setError('Forwarding out of a private chat is disabled to protect its content.')}
+                  onDelete={(m, forEveryone) => {
+                    if (window.confirm(forEveryone ? 'Unsend this message for everyone?' : 'Delete this message from this device?')) {
+                      void deleteMessage(m, forEveryone);
+                    }
+                  }}
+                  onInfo={(m) => setError(`Sent ${new Date(m.sentAt).toLocaleString()} · ${m.deliveryStatus}`)}
+                  onReact={(m, emoji) => reactToMessage(m.id, emoji)}
+                  onToggleFlag={(m, flag) =>
+                    setMessageFlags(m.id, flag === 'isPinned' ? { isPinned: !m.isPinned } : { isStarred: !m.isStarred })
+                  }
+                  onJumpTo={(id) => document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                />
+              ))
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Message Input Box */}
-          <div className="p-3.5 border-t border-border bg-card/20">
-            <form onSubmit={handleSend} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type secure encrypted message…"
-                disabled={isSending}
-                className="flex-1 px-3 py-2 rounded-md bg-background border border-input text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors duration-150 ease-out"
-              />
-              <button
-                type="submit"
-                disabled={isSending || !inputText.trim()}
-                className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors duration-150 ease-out shadow-sm flex items-center justify-center cursor-pointer active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
-                title="Send Message"
-                aria-label="Send Message"
-              >
-                <Send className="w-4 h-4" />
+          {error && (
+            <div role="alert" className="mx-4 mb-1 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="flex-1">{error}</span>
+              <button onClick={() => setError(null)} aria-label="Dismiss">
+                <X className="w-3.5 h-3.5" />
               </button>
-            </form>
+            </div>
+          )}
+
+          <div
+            onDragOver={(e) => e.dataTransfer.types.includes('Files') && e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const files = Array.from(e.dataTransfer.files ?? []);
+              if (files.length) composerRef.current?.addFiles(files);
+            }}
+          >
+            <MessageComposer
+              ref={composerRef}
+              placeholder="Type a secure message…"
+              isSending={isSending}
+              replyingTo={replyingTo}
+              editing={editing}
+              getName={getName}
+              onCancelReply={() => setReplyingTo(null)}
+              onCancelEdit={() => setEditing(null)}
+              onSend={async (text) => {
+                const replyId = replyingTo?.id;
+                setReplyingTo(null);
+                await sendMessage(text, replyId);
+              }}
+              onSaveEdit={(m, text) => editMessage(m.id, text)}
+              onSendFiles={handleSendFiles}
+              onTyping={() => {}}
+            />
           </div>
         </div>
       ) : (

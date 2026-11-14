@@ -350,5 +350,34 @@ export class DatabaseService {
         updated_at INTEGER NOT NULL
       );
     `);
+    this.runMigrations();
+  }
+
+  /**
+   * Idempotent additive migrations for databases created by earlier versions.
+   */
+  private runMigrations(): void {
+    const addColumn = (table: string, column: string, definition: string) => {
+      try {
+        const cols = this.sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+        if (!cols.some((c) => c.name === column)) {
+          this.sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+        }
+      } catch (err) {
+        console.error(`[Database] Migration failed for ${table}.${column}:`, err);
+      }
+    };
+
+    addColumn('conversations', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('conversations', 'is_muted', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('conversations', 'is_chat_locked', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('conversations', 'is_marked_unread', 'INTEGER NOT NULL DEFAULT 0');
+
+    addColumn('messages', 'reply_to_id', 'TEXT');
+    addColumn('messages', 'is_deleted', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('messages', 'edited_at', 'INTEGER');
+    addColumn('messages', 'reactions', 'TEXT');
+    addColumn('messages', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('messages', 'is_starred', 'INTEGER NOT NULL DEFAULT 0');
   }
 }

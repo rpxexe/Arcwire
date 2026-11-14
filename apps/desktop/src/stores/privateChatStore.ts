@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { cleanIpcError, previewFor } from './chatStore';
 import type {
   PrivateStatus,
   ConversationItem,
@@ -38,7 +39,18 @@ interface PrivateChatState {
   redeemInvitation: (code: string) => Promise<ConversationItem>;
   listInvitations: (conversationId: string) => Promise<InvitationItem[]>;
   revokeInvitation: (invitationId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, replyToId?: string) => Promise<void>;
+  sendFiles: (
+    files: Array<{ path?: string; name: string; type?: string; data?: Uint8Array }>,
+    caption?: string
+  ) => Promise<void>;
+  applyMessageUpdate: (message: MessageItem) => void;
+  deleteMessage: (message: MessageItem, forEveryone: boolean) => Promise<void>;
+  editMessage: (messageId: string, content: string) => Promise<void>;
+  reactToMessage: (messageId: string, emoji: string) => Promise<void>;
+  setMessageFlags: (messageId: string, flags: { isPinned?: boolean; isStarred?: boolean }) => Promise<void>;
+  unlockChat: (conversationId: string) => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
   setCreateModalOpen: (open: boolean) => void;
   setInviteModalOpen: (open: boolean) => void;
   setJoinModalOpen: (open: boolean) => void;
@@ -77,7 +89,8 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
           if (state.isUnlocked) {
             get().fetchConversations();
           } else {
-            set({ conversations: [], activeConversationId: null });
+            // Wipe decrypted content from memory when the workspace locks
+            set({ conversations: [], activeConversationId: null, messagesByConversation: {}, invitationsByConversation: {} });
           }
         });
       }
@@ -102,7 +115,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
                   c.id === msg.conversationId
                     ? {
                         ...c,
-                        lastMessage: msg.content,
+                        lastMessage: previewFor(msg),
                         lastActivityAt: msg.sentAt,
                         unreadCount: c.id === activeConversationId ? 0 : c.unreadCount + 1,
                       }
@@ -113,6 +126,10 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
           }
         });
       }
+      window.api?.onMessageUpdated?.((msg) => {
+        if (!get().isUnlocked) return;
+        if (get().messagesByConversation[msg.conversationId]) get().applyMessageUpdate(msg);
+      });
     } catch (err) {
       console.error('[PrivateChatStore] Failed to initialize:', err);
     }
@@ -144,7 +161,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
         await get().fetchConversations();
       }
     } catch (err: any) {
-      set({ error: err.message || 'Failed to setup private credential' });
+      set({ error: cleanIpcError(err) || 'Failed to setup private credential' });
       throw err;
     } finally {
       set({ isLoading: false });
@@ -250,7 +267,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
       }));
       return created;
     } catch (err: any) {
-      set({ error: err.message || 'Failed to create private chat' });
+      set({ error: cleanIpcError(err) || 'Failed to create private chat' });
       throw err;
     } finally {
       set({ isLoading: false });
@@ -291,7 +308,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
       await get().selectConversation(conv.id);
       return conv;
     } catch (err: any) {
-      set({ error: err.message || 'Failed to redeem invitation' });
+      set({ error: cleanIpcError(err) || 'Failed to redeem invitation' });
       throw err;
     } finally {
       set({ isLoading: false });
@@ -328,7 +345,121 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content: string) => {
+  applyMessageUpdate: (message: MessageItem) => {
+    set((state) => {
+      const list = state.messagesByConversation[message.conversationId] ?? [];
+      const idx = list.findIndex((m) => m.id === message.id);
+      const next = idx === -1 ? [...list, message] : list.map((m) => (m.id === message.id ? { ...m, ...message } : m));
+      const isLatest = next[next.length - 1]?.id === message.id;
+      return {
+        messagesByConversation: { ...state.messagesByConversation, [message.conversationId]: next },
+        conversations: isLatest
+          ? state.conversations.map((c) =>
+              c.id === message.conversationId
+                ? { ...c, lastMessage: previewFor(message), lastActivityAt: Math.max(c.lastActivityAt, message.sentAt) }
+                : c
+            )
+          : state.conversations,
+      };
+    });
+  },
+
+  sendFiles: async (files, caption) => {
+    const { activeConversationId } = get();
+    if (!activeConversationId) return;
+    let first = true;
+    for (const file of files) {
+      try {
+        const message = file.path
+          ? await window.api.sendFileToConversation({
+              conversationId: activeConversationId,
+              filePath: file.path,
+              caption: first ? caption : undefined,
+            })
+          : await window.api.sendBufferToConversation({
+              conversationId: activeConversationId,
+              fileName: file.name,
+              mimeType: file.type,
+              data: file.data ?? new Uint8Array(),
+              caption: first ? caption : undefined,
+            });
+        first = false;
+        get().applyMessageUpdate(message);
+      } catch (err) {
+        set({ error: `Could not send ${file.name}: ${cleanIpcError(err)}` });
+      }
+    }
+  },
+
+  deleteMessage: async (message, forEveryone) => {
+    try {
+      const updated = await window.api.deleteMessage({ messageId: message.id, forEveryone });
+      if (updated) {
+        get().applyMessageUpdate(updated);
+      } else {
+        set((state) => ({
+          messagesByConversation: {
+            ...state.messagesByConversation,
+            [message.conversationId]: (state.messagesByConversation[message.conversationId] ?? []).filter(
+              (m) => m.id !== message.id
+            ),
+          },
+        }));
+      }
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  editMessage: async (messageId, content) => {
+    try {
+      get().applyMessageUpdate(await window.api.editMessage({ messageId, content }));
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  reactToMessage: async (messageId, emoji) => {
+    try {
+      get().applyMessageUpdate(await window.api.reactToMessage({ messageId, emoji }));
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  setMessageFlags: async (messageId, flags) => {
+    try {
+      get().applyMessageUpdate(await window.api.setMessageFlags({ messageId, ...flags }));
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  unlockChat: async (conversationId) => {
+    try {
+      await window.api.setConversationFlags({ conversationId, isChatLocked: false });
+      set((state) => ({
+        conversations: state.conversations.filter((c) => c.id !== conversationId),
+        activeConversationId: state.activeConversationId === conversationId ? null : state.activeConversationId,
+      }));
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  deleteConversation: async (conversationId) => {
+    try {
+      await window.api.deleteConversation(conversationId);
+      set((state) => ({
+        conversations: state.conversations.filter((c) => c.id !== conversationId),
+        activeConversationId: state.activeConversationId === conversationId ? null : state.activeConversationId,
+      }));
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  sendMessage: async (content: string, replyToId?: string) => {
     const { activeConversationId, isUnlocked } = get();
     if (!activeConversationId || !isUnlocked || !content.trim()) return;
 
@@ -340,6 +471,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
           content: content.trim(),
           contentType: 'text',
           isEncrypted: true,
+          replyToId,
         });
 
         set((state) => {
@@ -353,7 +485,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
               c.id === activeConversationId
                 ? {
                     ...c,
-                    lastMessage: sent.content,
+                    lastMessage: previewFor(sent),
                     lastActivityAt: sent.sentAt,
                   }
                 : c
@@ -363,7 +495,7 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
       }
     } catch (err: any) {
       console.error('[PrivateChatStore] Error sending message:', err);
-      set({ error: err.message || 'Failed to send message' });
+      set({ error: cleanIpcError(err) || 'Failed to send message' });
     } finally {
       set({ isSending: false });
     }
