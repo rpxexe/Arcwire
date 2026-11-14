@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   UploadCloud,
   HardDrive,
@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useProfileStore } from '../../stores/profileStore';
 import { useDeviceStore } from '../../stores/deviceStore';
+import { useChatStore, cleanIpcError } from '../../stores/chatStore';
+import { filesToUploads } from '@/lib/messageUtils';
 import { useTransferStore } from '../../stores/transferStore';
 import { useSharedFolderStore } from '../../stores/sharedFolderStore';
 import { FolderPermission, TransferItem, RemoteFolderItem } from '@ipm/shared';
@@ -136,9 +138,92 @@ export const FilesView: React.FC = () => {
     setNewSharePermission('read_only');
   };
 
+  // ---------------------------------------------------------------------------
+  // Sending (button or drag & drop) — files go through the peer's direct chat so
+  // they also appear there as file bubbles with live progress.
+  // ---------------------------------------------------------------------------
+  const onlinePeers = devices.filter((d) => d.status === 'online');
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSendingFiles, setIsSendingFiles] = useState(false);
+  const [sendNotice, setSendNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const dragDepth = useRef(0);
+
+  useEffect(() => {
+    if (!sendNotice) return;
+    const t = setTimeout(() => setSendNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [sendNotice]);
+
+  // Convenience: with exactly one peer online, preselect it
+  useEffect(() => {
+    if (!selectedPeerId && onlinePeers.length === 1) setSelectedPeerId(onlinePeers[0]!.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlinePeers.length]);
+
+  const sendFilesToPeer = async (
+    files: Array<{ path?: string; name: string; type?: string; data?: Uint8Array }>
+  ) => {
+    if (files.length === 0) return;
+    if (!selectedPeerId) {
+      setSendNotice({ tone: 'error', text: 'Select a target peer first, then drop or choose files.' });
+      return;
+    }
+    setIsSendingFiles(true);
+    let sent = 0;
+    try {
+      const conv = await window.api.createDirectConversation(selectedPeerId);
+      for (const f of files) {
+        try {
+          if (f.path) {
+            await window.api.sendFileToConversation({ conversationId: conv.id, filePath: f.path });
+          } else if (f.data) {
+            await window.api.sendBufferToConversation({ conversationId: conv.id, fileName: f.name, mimeType: f.type, data: f.data });
+          }
+          sent++;
+        } catch (err) {
+          setSendNotice({ tone: 'error', text: `Could not send ${f.name}: ${cleanIpcError(err)}` });
+        }
+      }
+      void useChatStore.getState().fetchConversations();
+      void fetchTransfers();
+      if (sent > 0) {
+        const peer = devices.find((d) => d.id === selectedPeerId);
+        setSendNotice({ tone: 'ok', text: `Sending ${sent} file${sent > 1 ? 's' : ''} to ${peer?.displayName ?? 'peer'}…` });
+      }
+    } catch (err) {
+      setSendNotice({ tone: 'error', text: cleanIpcError(err) });
+    } finally {
+      setIsSendingFiles(false);
+    }
+  };
+
   const handleStartSendFile = async () => {
     if (!selectedPeerId) return;
-    await selectAndSendFile('global', selectedPeerId);
+    const paths = await window.api.selectFile();
+    if (!paths?.length) return;
+    await sendFilesToPeer(paths.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() || p })));
+  };
+
+  const onDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setIsDragging(true);
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragging(false);
+  };
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files ?? []);
+    if (dropped.length === 0) return;
+    const uploads = await filesToUploads(dropped, (f) => window.api.getPathForFile(f));
+    await sendFilesToPeer(uploads);
   };
 
   const handleRemoteBrowseStart = async () => {
@@ -206,7 +291,23 @@ export const FilesView: React.FC = () => {
       {/* TAB 1: FILE TRANSFERS                                    */}
       {/* ======================================================== */}
       {activeTab === 'transfers' && (
-        <div className="space-y-6">
+        <div
+          className="space-y-6 relative"
+          onDragEnter={onDragEnter}
+          onDragOver={(e) => e.dataTransfer.types.includes('Files') && e.preventDefault()}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
+          {isDragging && (
+            <div className="absolute inset-0 z-30 rounded-2xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 pointer-events-none">
+              <UploadCloud className="w-9 h-9 text-primary" />
+              <p className="text-sm font-semibold text-foreground">
+                {selectedPeerId
+                  ? `Drop to send to ${devices.find((d) => d.id === selectedPeerId)?.displayName ?? 'peer'}`
+                  : 'Select a target peer first'}
+              </p>
+            </div>
+          )}
           {/* Incoming Offers Alert */}
           {incomingOffers.length > 0 && (
             <div className="space-y-3">
@@ -256,7 +357,7 @@ export const FilesView: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-sm text-foreground">Send File to LAN Peer</h3>
                 <p className="text-xs text-muted-foreground">
-                  Select a discovered peer device and choose file(s) to transfer.
+                  Pick a peer, then choose files — or drag &amp; drop files anywhere on this tab.
                 </p>
               </div>
             </div>
@@ -268,8 +369,7 @@ export const FilesView: React.FC = () => {
                 className="px-3 py-1.5 rounded-lg text-xs bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-w-[200px]"
               >
                 <option value="">Select Target Peer...</option>
-                {devices
-                  .filter((d) => d.status === 'online')
+                {onlinePeers
                   .map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.displayName} ({d.ipAddress})
@@ -278,14 +378,27 @@ export const FilesView: React.FC = () => {
               </select>
 
               <button
-                disabled={!selectedPeerId}
+                disabled={!selectedPeerId || isSendingFiles}
                 onClick={handleStartSendFile}
                 className="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground text-xs font-semibold flex items-center gap-1.5 shadow transition-colors shrink-0"
               >
-                <File className="w-3.5 h-3.5" /> Choose & Send
+                {isSendingFiles ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <File className="w-3.5 h-3.5" />} Choose &amp; Send
               </button>
             </div>
           </div>
+
+          {sendNotice && (
+            <div
+              role={sendNotice.tone === 'error' ? 'alert' : 'status'}
+              className={`-mt-3 px-3 py-2 rounded-lg text-xs border ${
+                sendNotice.tone === 'error'
+                  ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                  : 'border-primary/30 bg-primary/10 text-foreground'
+              }`}
+            >
+              {sendNotice.text}
+            </div>
+          )}
 
           {/* Active Transfers Section */}
           <div className="space-y-3">

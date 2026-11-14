@@ -19,6 +19,8 @@ const api: IpcApi = {
   maximizeWindow: () => ipcRenderer.invoke(IpcChannels.WINDOW_MAXIMIZE),
   closeWindow: () => ipcRenderer.invoke(IpcChannels.WINDOW_CLOSE),
   minimizeToTray: () => ipcRenderer.invoke(IpcChannels.WINDOW_MINIMIZE_TO_TRAY),
+  setTitleBarOverlay: (colors) => ipcRenderer.invoke(IpcChannels.WINDOW_SET_TITLEBAR_OVERLAY, colors),
+  hasNativeWindowControls: process.platform === 'win32',
 
   // System
   getSystemInfo: () => ipcRenderer.invoke(IpcChannels.SYSTEM_GET_INFO),
@@ -61,6 +63,10 @@ const api: IpcApi = {
   // Private Chat System (Phase 4)
   getPrivateStatus: () => ipcRenderer.invoke(IpcChannels.PRIVATE_STATUS),
   setupPrivateCredential: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_SETUP_CREDENTIAL, input),
+  changePrivatePassword: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_CHANGE_PASSWORD, input),
+  generatePrivateRecoveryKey: () => ipcRenderer.invoke(IpcChannels.PRIVATE_GENERATE_RECOVERY_KEY),
+  resetPrivateWithRecoveryKey: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_RESET_WITH_RECOVERY, input),
+  resetPrivateWipe: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_RESET_WIPE, input),
   unlockPrivate: (input) => ipcRenderer.invoke(IpcChannels.PRIVATE_UNLOCK, input),
   lockPrivate: () => ipcRenderer.invoke(IpcChannels.PRIVATE_LOCK),
   getPrivateConversations: () => ipcRenderer.invoke(IpcChannels.PRIVATE_CONVERSATIONS_LIST),

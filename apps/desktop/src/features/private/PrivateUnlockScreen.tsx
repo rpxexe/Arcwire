@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Key, AlertTriangle, Eye, EyeOff, Loader2, Sparkles, HelpCircle } from 'lucide-react';
 import { usePrivateChatStore } from '../../stores/privateChatStore';
+import { ForgotPinDialog } from './ForgotPinDialog';
 
 export const PrivateUnlockScreen: React.FC = () => {
   const { status, lockedUntil, isLoading, error, setupCredential, unlock, setError } = usePrivateChatStore();
@@ -11,6 +12,7 @@ export const PrivateUnlockScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
 
   const isSetupMode = !status?.hasCredential;
 
@@ -180,6 +182,18 @@ export const PrivateUnlockScreen: React.FC = () => {
             </div>
           )}
 
+          {!isSetupMode && (
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={() => setIsForgotOpen(true)}
+                className="text-[11px] font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                Forgot PIN?
+              </button>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading || secondsRemaining > 0 || !password}
@@ -204,6 +218,7 @@ export const PrivateUnlockScreen: React.FC = () => {
           </button>
         </form>
       </div>
+      <ForgotPinDialog open={isForgotOpen} onOpenChange={setIsForgotOpen} />
     </div>
   );
 };

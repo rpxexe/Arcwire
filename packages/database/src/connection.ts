@@ -373,6 +373,8 @@ export class DatabaseService {
     addColumn('conversations', 'is_chat_locked', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('conversations', 'is_marked_unread', 'INTEGER NOT NULL DEFAULT 0');
 
+    addColumn('private_credentials', 'recovery_hash', 'TEXT');
+
     addColumn('messages', 'reply_to_id', 'TEXT');
     addColumn('messages', 'is_deleted', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('messages', 'edited_at', 'INTEGER');

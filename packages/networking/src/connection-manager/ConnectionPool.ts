@@ -60,7 +60,11 @@ export class ConnectionPool extends EventEmitter {
     });
 
     connection.on('close', () => {
-      this.handleConnectionDrop(peerId);
+      // Only react if this is still the active connection — a replaced duplicate
+      // closing late must not evict the healthy connection that superseded it.
+      if (this.connections.get(peerId) === connection) {
+        this.handleConnectionDrop(peerId);
+      }
     });
 
     connection.on('error', (err) => {
@@ -76,7 +80,26 @@ export class ConnectionPool extends EventEmitter {
 
   public hasConnection(peerId: string): boolean {
     const conn = this.connections.get(peerId);
-    return Boolean(conn && conn.isAuthenticated);
+    return Boolean(conn && this.isUsable(conn));
+  }
+
+  private isUsable(conn: LanTransportConnection): boolean {
+    return conn.isAuthenticated && conn.isOpen;
+  }
+
+  /** Returns a usable connection, evicting a dead one and reconnecting on demand. */
+  private async getUsableConnection(peerId: string): Promise<LanTransportConnection> {
+    const current = this.connections.get(peerId);
+    if (current && this.isUsable(current)) return current;
+    if (current) {
+      this.connections.delete(peerId);
+      current.close();
+    }
+    const target = this.peerTargets.get(peerId);
+    if (!target) {
+      throw new Error(`No active connection or known IP target for peer ${peerId}`);
+    }
+    return this.connectToPeer(target.peerId, target.ipAddress, target.port);
   }
 
   public getConnectedPeerIds(): string[] {
@@ -84,18 +107,15 @@ export class ConnectionPool extends EventEmitter {
   }
 
   public async send(peerId: string, message: NetworkEnvelope): Promise<void> {
-    let connection = this.connections.get(peerId);
-
-    if (!connection || !connection.isAuthenticated) {
-      // Attempt immediate on-demand connect if target address is known
-      const target = this.peerTargets.get(peerId);
-      if (!target) {
-        throw new Error(`No active connection or known IP target for peer ${peerId}`);
-      }
-      connection = await this.connectToPeer(target.peerId, target.ipAddress, target.port);
+    const connection = await this.getUsableConnection(peerId);
+    try {
+      await connection.send(message);
+    } catch (err) {
+      // The socket died between the check and the write: reconnect once and retry.
+      if (this.connections.get(peerId) === connection) this.connections.delete(peerId);
+      const fresh = await this.getUsableConnection(peerId);
+      await fresh.send(message);
     }
-
-    await connection.send(message);
   }
 
   public async connectToPeer(
@@ -106,7 +126,7 @@ export class ConnectionPool extends EventEmitter {
   ): Promise<LanTransportConnection> {
     // If already connected, return existing
     const existing = this.connections.get(peerId);
-    if (existing && existing.isAuthenticated) {
+    if (existing && this.isUsable(existing)) {
       return existing;
     }
 

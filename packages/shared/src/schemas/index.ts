@@ -290,6 +290,20 @@ export const UnlockPrivateInputSchema = z.object({
 });
 export type UnlockPrivateInput = z.infer<typeof UnlockPrivateInputSchema>;
 
+export const ChangePrivatePasswordInputSchema = z.object({
+  currentPassword: z.string().min(1, 'Current PIN required'),
+  newPassword: z.string().min(4, 'PIN or passphrase must be at least 4 characters').max(64),
+  recoveryHint: z.string().max(100).optional(),
+});
+export type ChangePrivatePasswordInput = z.infer<typeof ChangePrivatePasswordInputSchema>;
+
+export const ResetPrivateWithRecoveryInputSchema = z.object({
+  recoveryKey: z.string().min(10).max(64),
+  newPassword: z.string().min(4, 'PIN or passphrase must be at least 4 characters').max(64),
+  recoveryHint: z.string().max(100).optional(),
+});
+export type ResetPrivateWithRecoveryInput = z.infer<typeof ResetPrivateWithRecoveryInputSchema>;
+
 export const CreatePrivateConversationInputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
 });
@@ -314,6 +328,7 @@ export const PrivateStatusSchema = z.object({
   lockedUntil: z.number().nullable().optional(),
   failedAttempts: z.number(),
   recoveryHint: z.string().nullable().optional(),
+  hasRecoveryKey: z.boolean().optional(),
 });
 export type PrivateStatus = z.infer<typeof PrivateStatusSchema>;
 

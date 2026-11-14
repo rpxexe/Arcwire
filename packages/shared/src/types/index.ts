@@ -13,6 +13,8 @@ import {
   SearchMessagesInput,
   SetupUnlockCredentialInput,
   UnlockPrivateInput,
+  ChangePrivatePasswordInput,
+  ResetPrivateWithRecoveryInput,
   CreatePrivateConversationInput,
   CreateInvitationInput,
   RedeemInvitationInput,
@@ -169,6 +171,9 @@ export interface IpcApi {
   maximizeWindow: () => Promise<void>;
   closeWindow: () => Promise<void>;
   minimizeToTray: () => Promise<void>;
+  setTitleBarOverlay: (colors: { color: string; symbolColor: string }) => Promise<void>;
+  /** True when the OS draws the window caption buttons (Windows title bar overlay). */
+  hasNativeWindowControls: boolean;
 
   // System
   getSystemInfo: () => Promise<SystemInfo>;
@@ -215,7 +220,13 @@ export interface IpcApi {
 
   // Private Chat System (Phase 4)
   getPrivateStatus: () => Promise<PrivateStatus>;
-  setupPrivateCredential: (input: SetupUnlockCredentialInput) => Promise<void>;
+  setupPrivateCredential: (input: SetupUnlockCredentialInput) => Promise<{ recoveryKey: string }>;
+  changePrivatePassword: (input: ChangePrivatePasswordInput) => Promise<{ success: boolean; error?: string; lockedUntil?: number | null }>;
+  generatePrivateRecoveryKey: () => Promise<{ recoveryKey: string }>;
+  resetPrivateWithRecoveryKey: (
+    input: ResetPrivateWithRecoveryInput
+  ) => Promise<{ success: boolean; error?: string; lockedUntil?: number | null; recoveryKey?: string }>;
+  resetPrivateWipe: (input: { confirmation: string }) => Promise<void>;
   unlockPrivate: (input: UnlockPrivateInput) => Promise<{ success: boolean; error?: string; lockedUntil?: number | null }>;
   lockPrivate: () => Promise<void>;
   getPrivateConversations: () => Promise<ConversationItem[]>;

@@ -25,8 +25,27 @@ export const SettingsView: React.FC = () => {
   const [firewallBusy, setFirewallBusy] = useState(false);
   const [firewallError, setFirewallError] = useState<string | null>(null);
 
+  const [firewallChecking, setFirewallChecking] = useState(false);
+  const refreshFirewall = async () => {
+    setFirewallChecking(true);
+    try {
+      const status = await window.api?.getFirewallStatus?.();
+      if (status) setFirewall(status);
+    } catch {
+      // keep the previous status
+    } finally {
+      setFirewallChecking(false);
+    }
+  };
+
+  // Check on open and again whenever the window regains focus (e.g. after allowing Arcwire
+  // in the Windows prompt or in wf.msc).
   useEffect(() => {
-    window.api?.getFirewallStatus?.().then(setFirewall).catch(() => {});
+    void refreshFirewall();
+    const onFocus = () => void refreshFirewall();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -262,7 +281,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-foreground">
-                {!firewall
+                {!firewall || (firewallChecking && !firewall.allowed)
                   ? 'Checking firewall…'
                   : !firewall.supported
                   ? 'Not applicable on this OS'
@@ -277,6 +296,14 @@ export const SettingsView: React.FC = () => {
                 {firewall?.networkCategory ? ` Current network: ${firewall.networkCategory}.` : ''}
               </p>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => void refreshFirewall()}
+              disabled={firewallChecking}
+              className="px-3 py-1.5 rounded-md border border-input text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              <RotateCw className={`w-3 h-3 ${firewallChecking ? 'animate-spin' : ''}`} /> Re-check
+            </button>
             <button
               onClick={async () => {
                 setFirewallBusy(true);
@@ -297,6 +324,7 @@ export const SettingsView: React.FC = () => {
               {firewallBusy && <RotateCw className="w-3 h-3 animate-spin" />}
               {firewall?.allowed && !firewall?.blocked ? 'Allowed' : 'Allow through firewall'}
             </button>
+            </div>
           </div>
           {(firewallError || firewall?.error) && (
             <p className="text-xs text-destructive">{firewallError ?? firewall?.error}</p>

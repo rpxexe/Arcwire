@@ -163,6 +163,7 @@ export const privateCredentials = sqliteTable('private_credentials', {
   failedAttempts: integer('failed_attempts').notNull().default(0),
   lockedUntil: integer('locked_until'),
   recoveryHint: text('recovery_hint'),
+  recoveryHash: text('recovery_hash'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

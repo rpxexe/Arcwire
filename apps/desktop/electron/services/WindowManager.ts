@@ -28,7 +28,14 @@ export class WindowManager {
       height: 780,
       minWidth: 980,
       minHeight: 640,
-      frame: false,
+      // Native Windows caption buttons drawn over our custom title bar: they stay visible and
+      // correct when maximized and support Windows 11 snap layouts.
+      ...(process.platform === 'win32'
+        ? {
+            titleBarStyle: 'hidden' as const,
+            titleBarOverlay: { color: '#072E33', symbolColor: '#F0F7F9', height: 36 },
+          }
+        : { frame: false }),
       title: 'Arcwire',
       icon: iconPath,
       show: false,

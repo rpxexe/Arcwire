@@ -24,7 +24,8 @@ import { MessageComposer, ComposerHandle, StagedFile } from '../chats/MessageCom
 import { useDeviceStore } from '../../stores/deviceStore';
 import { filesToUploads } from '@/lib/messageUtils';
 import type { MessageItem } from '@ipm/shared';
-import { Unlock, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Unlock, Trash2, AlertTriangle, X, KeyRound } from 'lucide-react';
+import { PrivateSecurityDialog } from './PrivateSecurityDialog';
 
 export const PrivateChatsWorkspace: React.FC = () => {
   const {
@@ -47,6 +48,7 @@ export const PrivateChatsWorkspace: React.FC = () => {
     setMessageFlags,
     unlockChat,
     deleteConversation,
+    setSecurityModalOpen,
   } = usePrivateChatStore();
 
   const { profile } = useProfileStore();
@@ -151,8 +153,16 @@ export const PrivateChatsWorkspace: React.FC = () => {
               <Plus className="w-4 h-4" />
             </button>
             <button
+              onClick={() => setSecurityModalOpen(true)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1"
+              title="Change PIN / recovery key"
+              aria-label="Change PIN or recovery key"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+            </button>
+            <button
               onClick={() => lock()}
-              className="p-1.5 rounded-lg text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors ml-1"
+              className="p-1.5 rounded-lg text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
               title="Lock Workspace Now"
             >
               <Lock className="w-3.5 h-3.5" />
@@ -422,6 +432,7 @@ export const PrivateChatsWorkspace: React.FC = () => {
       <CreatePrivateChatModal />
       <InviteToPrivateChatModal />
       <JoinPrivateChatModal />
+      <PrivateSecurityDialog />
     </div>
   );
 };

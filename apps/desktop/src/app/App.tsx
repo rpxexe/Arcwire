@@ -20,6 +20,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useTransferStore } from '../stores/transferStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import { MediaPermissionPrompt } from '../features/settings/MediaPermissionPrompt';
+import { RecoveryKeyDialog } from '../features/private/RecoveryKeyDialog';
 import { Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -115,6 +116,9 @@ export const App: React.FC = () => {
 
       {/* First-run microphone / camera permission request */}
       {profile && <MediaPermissionPrompt />}
+
+      {/* One-time display of a newly created Private Chats recovery key */}
+      <RecoveryKeyDialog />
     </div>
   );
 };
