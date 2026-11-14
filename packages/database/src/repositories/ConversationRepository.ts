@@ -17,32 +17,45 @@ export class ConversationRepository {
     this.dbService = dbService;
   }
 
+  /** Human-readable preview for the conversation list. */
+  public static previewText(msg: { content: string; contentType: string; isDeleted?: number | null }): string {
+    if (msg.isDeleted) return 'This message was deleted';
+    if (msg.contentType === 'file') {
+      try {
+        const meta = JSON.parse(msg.content) as { fileName?: string; caption?: string };
+        return meta.caption ? `Attachment: ${meta.caption}` : `Attachment: ${meta.fileName ?? 'file'}`;
+      } catch {
+        return 'Attachment';
+      }
+    }
+    return msg.content;
+  }
+
+  /**
+   * @param includePrivate when true, also returns PIN-protected conversations
+   *   (private conversations and chats the user has locked).
+   */
   public getConversations(localDeviceId: string = '', includePrivate: boolean = false): ConversationItem[] {
     const db = this.dbService.getDb();
     const rows = db.select().from(conversations).orderBy(desc(conversations.lastActivityAt)).all();
 
     return rows
-      .filter((row) => includePrivate || row.type !== 'private')
+      .filter((row) => includePrivate || (row.type !== 'private' && !row.isChatLocked))
       .map((row) => {
-        // 1. Fetch last message if available
-        let lastMessageText: string | null = null;
-        if (row.lastMessageId) {
-          const lastMsg = db.select().from(messages).where(eq(messages.id, row.lastMessageId)).limit(1).all()[0];
-          if (lastMsg) {
-            lastMessageText = lastMsg.contentType === 'file' ? '[File Attachment]' : lastMsg.content;
-          }
-        } else {
-          const lastMsg = db
+        // 1. Fetch last message if available (falls back to newest row if the pointer is stale)
+        let lastMsg = row.lastMessageId
+          ? db.select().from(messages).where(eq(messages.id, row.lastMessageId)).limit(1).all()[0]
+          : undefined;
+        if (!lastMsg) {
+          lastMsg = db
             .select()
             .from(messages)
             .where(eq(messages.conversationId, row.id))
             .orderBy(desc(messages.sequence))
             .limit(1)
             .all()[0];
-          if (lastMsg) {
-            lastMessageText = lastMsg.contentType === 'file' ? '[File Attachment]' : lastMsg.content;
-          }
         }
+        const lastMessageText: string | null = lastMsg ? ConversationRepository.previewText(lastMsg) : null;
 
         // 2. Count unread messages (where sender is not current device and readAt is null)
         const unreadRows = db
@@ -56,7 +69,7 @@ export class ConversationRepository {
             )
           )
           .all();
-        const unreadCount = Number(unreadRows[0]?.count || 0);
+        const unreadCount = Math.max(Number(unreadRows[0]?.count || 0), row.isMarkedUnread ? 1 : 0);
 
         // 3. Find members with automatic self-healing for corrupted direct conversations
         let memberRows = db
@@ -156,6 +169,11 @@ export class ConversationRepository {
           memberDeviceIds,
           hostDeviceId,
           isHost,
+          isPinned: Boolean(row.isPinned),
+          isMuted: Boolean(row.isMuted),
+          isArchived: Boolean(row.isArchived),
+          isChatLocked: Boolean(row.isChatLocked),
+          isMarkedUnread: Boolean(row.isMarkedUnread),
         };
       });
   }
@@ -313,6 +331,64 @@ export class ConversationRepository {
         .onConflictDoNothing()
         .run();
     }
+  }
+
+  public setConversationFlags(
+    id: string,
+    flags: { isPinned?: boolean; isMuted?: boolean; isArchived?: boolean; isChatLocked?: boolean; isMarkedUnread?: boolean }
+  ): void {
+    const db = this.dbService.getDb();
+    const update: Partial<typeof conversations.$inferInsert> = {};
+    if (flags.isPinned !== undefined) update.isPinned = flags.isPinned ? 1 : 0;
+    if (flags.isMuted !== undefined) update.isMuted = flags.isMuted ? 1 : 0;
+    if (flags.isArchived !== undefined) update.isArchived = flags.isArchived ? 1 : 0;
+    if (flags.isChatLocked !== undefined) update.isChatLocked = flags.isChatLocked ? 1 : 0;
+    if (flags.isMarkedUnread !== undefined) update.isMarkedUnread = flags.isMarkedUnread ? 1 : 0;
+    if (Object.keys(update).length === 0) return;
+    update.updatedAt = Date.now();
+    db.update(conversations).set(update).where(eq(conversations.id, id)).run();
+  }
+
+  public isChatLocked(id: string): boolean {
+    const db = this.dbService.getDb();
+    const row = db.select({ v: conversations.isChatLocked }).from(conversations).where(eq(conversations.id, id)).limit(1).all()[0];
+    return Boolean(row?.v);
+  }
+
+  public conversationExists(id: string): boolean {
+    const db = this.dbService.getDb();
+    return db.select({ id: conversations.id }).from(conversations).where(eq(conversations.id, id)).limit(1).all().length > 0;
+  }
+
+  /** Clears all messages but keeps the conversation. */
+  public clearConversation(id: string): void {
+    const db = this.dbService.getDb();
+    db.delete(messages).where(eq(messages.conversationId, id)).run();
+    db.update(conversations)
+      .set({ lastMessageId: null, isMarkedUnread: 0, updatedAt: Date.now() })
+      .where(eq(conversations.id, id))
+      .run();
+  }
+
+  /** Deletes the conversation locally; members, messages and private rows cascade. */
+  public deleteConversation(id: string): void {
+    const sqlite = this.dbService.getRawSqlite();
+    const run = (statement: string) => {
+      try {
+        sqlite.prepare(statement).run(id);
+      } catch (err) {
+        console.error('[ConversationRepository] delete step failed:', statement, err);
+      }
+    };
+    // Explicit deletes so the operation also succeeds on DBs where FK cascades are off.
+    run('DELETE FROM messages WHERE conversation_id = ?');
+    run('DELETE FROM invitations WHERE private_conversation_id = ?');
+    run('DELETE FROM private_members WHERE private_conversation_id = ?');
+    run('DELETE FROM private_conversations WHERE id = ?');
+    run('DELETE FROM group_members WHERE group_id = ?');
+    run('DELETE FROM groups WHERE id = ?');
+    run('DELETE FROM conversation_members WHERE conversation_id = ?');
+    run('DELETE FROM conversations WHERE id = ?');
   }
 
   public updateLastActivity(id: string, lastMessageId: string, timestamp: number = Date.now()): void {

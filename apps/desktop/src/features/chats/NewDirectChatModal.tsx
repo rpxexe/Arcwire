@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, MessageSquare, Search, Globe, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, MessageSquare, Search, Globe, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { useProfileStore } from '../../stores/profileStore';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useChatStore } from '../../stores/chatStore';
 
@@ -14,21 +15,43 @@ export const NewDirectChatModal: React.FC<NewDirectChatModalProps> = ({
   onClose,
   onOpenDirectConnect,
 }) => {
-  const { devices } = useDeviceStore();
+  const { devices, fetchDevices } = useDeviceStore();
   const { createDirectChat } = useChatStore();
+  const { profile } = useProfileStore();
 
   const [search, setSearch] = useState('');
+  const [showOffline, setShowOffline] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+
+  // Ask the LAN who is online right now whenever the dialog opens
+  const scan = async () => {
+    setIsScanning(true);
+    try {
+      await window.api?.refreshDevices?.();
+      await new Promise((r) => setTimeout(r, 1500));
+      await fetchDevices();
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) void scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
   const [loadingDeviceId, setLoadingDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const filteredDevices = devices.filter(
-    (d) =>
-      d.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      d.hostname.toLowerCase().includes(search.toLowerCase()) ||
-      d.ipAddress.includes(search)
+  const q = search.toLowerCase();
+  const peers = devices.filter((d) => d.id !== profile?.deviceId && d.id !== profile?.id);
+  const matches = peers.filter(
+    (d) => d.displayName.toLowerCase().includes(q) || d.hostname.toLowerCase().includes(q) || d.ipAddress.includes(search)
   );
+  const activeDevices = matches.filter((d) => d.status !== 'offline');
+  const offlineCount = matches.length - activeDevices.length;
+  const filteredDevices = showOffline ? [...activeDevices, ...matches.filter((d) => d.status === 'offline')] : activeDevices;
 
   const handleSelectPeer = async (deviceId: string) => {
     setLoadingDeviceId(deviceId);
@@ -87,13 +110,50 @@ export const NewDirectChatModal: React.FC<NewDirectChatModalProps> = ({
             />
           </div>
 
+          {/* Active peers header */}
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-foreground">
+              Active on this network ({activeDevices.length})
+            </span>
+            <div className="flex items-center gap-3">
+              {offlineCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowOffline((v) => !v)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {showOffline ? 'Hide offline' : `Show offline (${offlineCount})`}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void scan()}
+                disabled={isScanning}
+                className="inline-flex items-center gap-1 text-primary font-semibold hover:underline disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin' : ''}`} />
+                {isScanning ? 'Scanning…' : 'Rescan'}
+              </button>
+            </div>
+          </div>
+
           {/* Peer List */}
           <div className="max-h-60 overflow-y-auto rounded-xl border border-border divide-y divide-border/40 bg-background/50">
             {filteredDevices.length === 0 ? (
               <div className="p-6 text-center space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  {search ? 'No matching peers found.' : 'No LAN peers discovered yet.'}
+                  {search
+                    ? 'No matching peers found.'
+                    : isScanning
+                    ? 'Looking for devices on your Wi-Fi…'
+                    : 'No active devices found on this network.'}
                 </p>
+                {!search && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                    Other PCs appear here when Arcwire is open on them, they are on the same Wi-Fi, and Arcwire is
+                    allowed through Windows Firewall on <strong>both</strong> PCs (Settings → Windows Firewall).
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => {

@@ -9,14 +9,25 @@ import {
   Bell,
   Check,
   RotateCw,
+  Mic,
+  ShieldAlert,
 } from 'lucide-react';
 import { useThemeStore } from '../../stores/themeStore';
 import { useProfileStore } from '../../stores/profileStore';
-import type { AppSettings } from '@ipm/shared';
+import { MediaPermissionPrompt } from './MediaPermissionPrompt';
+import type { AppSettings, FirewallStatus } from '@ipm/shared';
 
 export const SettingsView: React.FC = () => {
   const { theme, setTheme } = useThemeStore();
   const { systemInfo } = useProfileStore();
+  const [showMediaPrompt, setShowMediaPrompt] = useState(false);
+  const [firewall, setFirewall] = useState<FirewallStatus | null>(null);
+  const [firewallBusy, setFirewallBusy] = useState(false);
+  const [firewallError, setFirewallError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.api?.getFirewallStatus?.().then(setFirewall).catch(() => {});
+  }, []);
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -241,6 +252,84 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* 5. Windows Firewall */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-primary" /> Windows Firewall
+        </h2>
+        <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {!firewall
+                  ? 'Checking firewall…'
+                  : !firewall.supported
+                  ? 'Not applicable on this OS'
+                  : firewall.blocked
+                  ? 'Arcwire is blocked by Windows Firewall'
+                  : firewall.allowed
+                  ? 'Arcwire is allowed through Windows Firewall'
+                  : 'Arcwire is not allowed through Windows Firewall'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Other PCs can only find and message this PC when it is allowed. Do this on every PC running Arcwire.
+                {firewall?.networkCategory ? ` Current network: ${firewall.networkCategory}.` : ''}
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                setFirewallBusy(true);
+                setFirewallError(null);
+                try {
+                  setFirewall(await window.api.fixFirewall());
+                } catch (err) {
+                  setFirewallError(
+                    ((err as Error)?.message ?? String(err)).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
+                  );
+                } finally {
+                  setFirewallBusy(false);
+                }
+              }}
+              disabled={firewallBusy || (firewall?.allowed && !firewall?.blocked) || firewall?.supported === false}
+              className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shrink-0 disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {firewallBusy && <RotateCw className="w-3 h-3 animate-spin" />}
+              {firewall?.allowed && !firewall?.blocked ? 'Allowed' : 'Allow through firewall'}
+            </button>
+          </div>
+          {(firewallError || firewall?.error) && (
+            <p className="text-xs text-destructive">{firewallError ?? firewall?.error}</p>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Windows will ask for administrator permission once. Rules cover UDP {settings?.udpPort ?? 45820} (discovery)
+            and TCP {settings?.tcpPort ?? 45821}/{settings?.signalingPort ?? 45822} (messages, files, calls).
+          </p>
+        </div>
+      </section>
+
+      {/* 6. Device permissions */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <Mic className="w-4 h-4 text-primary" /> Microphone &amp; Camera
+        </h2>
+        <div className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Call permissions</p>
+            <p className="text-xs text-muted-foreground">
+              Grant or re-check access used for voice calls, video calls and screen sharing.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowMediaPrompt(true)}
+            className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shrink-0"
+          >
+            Check permissions
+          </button>
+        </div>
+      </section>
+
+      {showMediaPrompt && <MediaPermissionPrompt forceOpen onClose={() => setShowMediaPrompt(false)} />}
     </div>
   );
 };

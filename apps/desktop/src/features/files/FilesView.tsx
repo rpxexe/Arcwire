@@ -44,7 +44,6 @@ export const FilesView: React.FC = () => {
     cancelTransfer,
     openFolder,
     selectAndSendFile,
-    initListeners: initTransferListeners,
   } = useTransferStore();
 
   const {
@@ -85,10 +84,8 @@ export const FilesView: React.FC = () => {
   useEffect(() => {
     fetchDevices();
     fetchSharedFolders();
-    const unsub = initTransferListeners();
-    return () => {
-      unsub();
-    };
+    // Transfer listeners are initialised app-wide in App.tsx; just refresh the list here.
+    fetchTransfers();
   }, []);
 
   const formatBytes = (bytes: number): string => {

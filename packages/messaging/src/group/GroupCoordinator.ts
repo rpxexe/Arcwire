@@ -91,7 +91,8 @@ export class GroupCoordinator extends EventEmitter {
   public async sendGroupMessage(
     groupId: string,
     content: string,
-    contentType: 'text' | 'file' | 'system' = 'text'
+    contentType: 'text' | 'file' | 'system' = 'text',
+    replyToId?: string | null
   ): Promise<MessageItem> {
     const group = this.groupRepo.getGroupById(groupId);
     if (!group) {
@@ -117,6 +118,7 @@ export class GroupCoordinator extends EventEmitter {
         deliveredAt: null,
         readAt: null,
         isEncrypted: false,
+        replyToId: replyToId ?? null,
       };
 
       this.messageRepo.insertMessage(message);
@@ -133,6 +135,7 @@ export class GroupCoordinator extends EventEmitter {
         content,
         contentType,
         sentAt: now,
+        replyToId: replyToId ?? null,
       };
 
       const envelope: NetworkEnvelope = {
@@ -169,6 +172,7 @@ export class GroupCoordinator extends EventEmitter {
         deliveredAt: null,
         readAt: null,
         isEncrypted: false,
+        replyToId: replyToId ?? null,
       };
 
       this.messageRepo.insertMessage(message);
@@ -182,6 +186,7 @@ export class GroupCoordinator extends EventEmitter {
         content,
         contentType,
         sentAt: now,
+        replyToId: replyToId ?? null,
       };
 
       const envelope: NetworkEnvelope = {
@@ -255,6 +260,7 @@ export class GroupCoordinator extends EventEmitter {
           content: payload.content,
           contentType: payload.contentType,
           sentAt: payload.sentAt,
+          replyToId: payload.replyToId ?? null,
         };
 
         const fanOutEnvelope: NetworkEnvelope = {

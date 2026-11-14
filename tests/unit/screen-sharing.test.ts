@@ -47,14 +47,41 @@ describe('Screen Sharing (Phase 7 - Architecture Section 12)', () => {
       expect(stats.latencyMs).toBe(5);
     });
 
-    it('handles empty or missing stats report with sensible fallbacks', () => {
+    it('reports empty values (never fabricated numbers) for a missing stats report', () => {
       const monitor = new CallStatsMonitor();
       const stats = monitor.parseStatsReport(null);
 
-      expect(stats.resolution).toBe('1280x720');
-      expect(stats.fps).toBe(30);
+      expect(stats.resolution).toBe('—');
+      expect(stats.fps).toBe(0);
       expect(stats.packetLossPercentage).toBe(0);
-      expect(stats.latencyMs).toBe(2);
+      expect(stats.latencyMs).toBeUndefined();
+      expect(stats.inbound).toBeNull();
+      expect(stats.outbound).toBeNull();
+    });
+
+    it('reports sending and receiving video separately while screen sharing during a video call', () => {
+      const monitor = new CallStatsMonitor();
+      const report = (t: number, sent: number, recv: number) =>
+        new Map<string, any>([
+          ['out-cam', { id: 'out-cam', type: 'outbound-rtp', kind: 'video', timestamp: t, bytesSent: 0 }],
+          [
+            'out-screen',
+            { id: 'out-screen', type: 'outbound-rtp', kind: 'video', timestamp: t, frameWidth: 1920, frameHeight: 1080, framesPerSecond: 15, bytesSent: sent },
+          ],
+          [
+            'in-cam',
+            { id: 'in-cam', type: 'inbound-rtp', kind: 'video', timestamp: t, frameWidth: 1280, frameHeight: 720, framesPerSecond: 30, bytesReceived: recv, packetsReceived: 100, packetsLost: 0 },
+          ],
+        ]);
+
+      monitor.parseStatsReport(report(1000, 0, 0));
+      const stats = monitor.parseStatsReport(report(2000, 250_000, 125_000));
+
+      expect(stats.outbound?.resolution).toBe('1920x1080');
+      expect(stats.outbound?.bitrateKbps).toBe(2000);
+      expect(stats.inbound?.resolution).toBe('1280x720');
+      expect(stats.inbound?.bitrateKbps).toBe(1000);
+      expect(stats.resolution).toBe('1280x720');
     });
   });
 

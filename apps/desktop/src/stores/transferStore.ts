@@ -17,6 +17,9 @@ interface TransferState {
   resumeTransfer: (transferId: string) => Promise<void>;
   cancelTransfer: (transferId: string) => Promise<void>;
   openFolder: (filePath: string) => Promise<void>;
+  openFile: (filePath: string) => Promise<void>;
+  saveAs: (filePath: string) => Promise<void>;
+  upsertTransfer: (transfer: TransferItem) => void;
   initListeners: () => () => void;
 }
 
@@ -149,8 +152,43 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     }
   },
 
+  openFile: async (filePath: string) => {
+    try {
+      const errorText = await window.api?.openTransferFile?.(filePath);
+      if (errorText) set({ error: errorText });
+    } catch (err: any) {
+      set({ error: (err?.message || 'Could not open file').replace(/^Error invoking remote method [^:]+:\s*(Error:\s*)?/, '') });
+    }
+  },
+
+  saveAs: async (filePath: string) => {
+    try {
+      await window.api?.saveTransferAs?.(filePath);
+    } catch (err: any) {
+      set({ error: err?.message || 'Could not save file' });
+    }
+  },
+
+  upsertTransfer: (transfer: TransferItem) => {
+    set((state) => ({
+      transfers: state.transfers.some((t) => t.id === transfer.id)
+        ? state.transfers.map((t) => (t.id === transfer.id ? { ...t, ...transfer } : t))
+        : [transfer, ...state.transfers],
+      incomingOffers:
+        transfer.status === 'offered' && transfer.direction === 'incoming'
+          ? state.incomingOffers.some((o) => o.id === transfer.id)
+            ? state.incomingOffers
+            : [transfer, ...state.incomingOffers]
+          : state.incomingOffers.filter((o) => o.id !== transfer.id),
+    }));
+  },
+
   initListeners: () => {
     if (!window.api) return () => {};
+
+    const unsubUpdated = window.api.onTransferUpdated?.((transfer: TransferItem) => {
+      get().upsertTransfer(transfer);
+    });
 
     const unsubOffer = window.api.onTransferOffer?.((offer: TransferItem) => {
       set((state) => ({
@@ -175,7 +213,10 @@ export const useTransferStore = create<TransferState>((set, get) => ({
 
     const unsubCompleted = window.api.onTransferCompleted?.((transfer: TransferItem) => {
       set((state) => ({
-        transfers: state.transfers.map((t) => (t.id === transfer.id ? transfer : t)),
+        transfers: state.transfers.some((t) => t.id === transfer.id)
+          ? state.transfers.map((t) => (t.id === transfer.id ? transfer : t))
+          : [transfer, ...state.transfers],
+        incomingOffers: state.incomingOffers.filter((o) => o.id !== transfer.id),
       }));
     });
 
@@ -192,6 +233,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     get().fetchTransfers();
 
     return () => {
+      unsubUpdated?.();
       unsubOffer?.();
       unsubProgress?.();
       unsubCompleted?.();

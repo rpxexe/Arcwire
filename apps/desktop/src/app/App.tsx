@@ -16,6 +16,10 @@ import { useProfileStore } from '../stores/profileStore';
 import { useThemeStore } from '../stores/themeStore';
 import { usePrivateChatStore } from '../stores/privateChatStore';
 import { useCallStore } from '../stores/callStore';
+import { useChatStore } from '../stores/chatStore';
+import { useTransferStore } from '../stores/transferStore';
+import { useDeviceStore } from '../stores/deviceStore';
+import { MediaPermissionPrompt } from '../features/settings/MediaPermissionPrompt';
 import { Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -46,11 +50,19 @@ export const App: React.FC = () => {
     // 3. Initialize Private Chat store and listeners
     initPrivateStore();
 
-    // 4. Initialize Calling store listeners
+    // 4. App-wide listeners: calls, chats, transfers and devices must stay live
+    //    no matter which tab is open (otherwise offers / messages are missed).
     const unsubCalls = initCallListeners();
+    const unsubChats = useChatStore.getState().initListeners();
+    const unsubTransfers = useTransferStore.getState().initListeners();
+    const unsubDevices = useDeviceStore.getState().initListeners();
+    useChatStore.getState().fetchConversations();
 
     return () => {
       unsubCalls?.();
+      unsubChats?.();
+      unsubTransfers?.();
+      unsubDevices?.();
     };
   }, []);
 
@@ -100,6 +112,9 @@ export const App: React.FC = () => {
 
       {/* Global Active Call & Incoming Prompt Overlay */}
       <CallOverlay />
+
+      {/* First-run microphone / camera permission request */}
+      {profile && <MediaPermissionPrompt />}
     </div>
   );
 };

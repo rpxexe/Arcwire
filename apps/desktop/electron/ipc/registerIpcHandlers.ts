@@ -1,4 +1,7 @@
-import { app, ipcMain, BrowserWindow, dialog, shell } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { app, ipcMain, BrowserWindow, dialog, shell, clipboard, systemPreferences } from 'electron';
 import {
   IpcChannels,
   ProfileCreateSchema,
@@ -27,6 +30,10 @@ import {
   CallSignalInputSchema,
 } from '@ipm/shared';
 import { SystemInfoService } from '../services/SystemInfoService';
+import { AppPaths } from '../services/AppPaths';
+import { guessMimeType } from '../services/FileTransferService';
+import { FirewallService } from '../services/FirewallService';
+import { PathTraversalGuard } from '@ipm/file-sharing';
 import {
   ProfileRepository,
   SettingsRepository,
@@ -40,6 +47,7 @@ import {
   CallRepository,
 } from '@ipm/database';
 import { SecretKeyStore, generateDeviceIdentity, deriveDeviceId } from '@ipm/security';
+import type { ConversationItem, FileAttachmentMeta, MessageItem, MediaAccessStatus } from '@ipm/shared';
 import type { LanTransportAdapter } from '@ipm/networking';
 import type { MessagingService } from '@ipm/messaging';
 import type { PrivateSessionManager } from '../services/PrivateSessionManager';
@@ -90,6 +98,101 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     initLanAdapter,
     getMessagingService,
   } = deps;
+
+  const MAX_BUFFER_UPLOAD_BYTES = 512 * 1024 * 1024; // 512 MB for pasted / dropped in-memory files
+
+  const sendToRenderer = (channel: string, payload: unknown) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+
+  const localDeviceId = (): string => profileRepo.getProfile()?.deviceId ?? '';
+
+  /** Throws if the conversation is PIN-protected and the private workspace is locked. */
+  const guardConversation = (conversationId: string): boolean => {
+    const isProtected = privateSession.isProtectedConversation(conversationId);
+    if (isProtected) {
+      privateSession.requireUnlocked();
+      privateSession.touch();
+    }
+    return isProtected;
+  };
+
+  const guardMessage = (messageId: string): MessageItem => {
+    const msg = messageRepo.getMessageById(messageId);
+    if (!msg) throw new Error('Message not found');
+    guardConversation(msg.conversationId);
+    return msg;
+  };
+
+  const getRecipients = (conv: ConversationItem): string[] => {
+    const me = localDeviceId();
+    if (conv.type === 'direct') {
+      const peer = conv.peerDeviceId || conv.memberDeviceIds?.find((id) => id !== me);
+      return peer && peer !== me ? [peer] : [];
+    }
+    return Array.from(new Set((conv.memberDeviceIds ?? []).filter((id) => id && id !== me)));
+  };
+
+  /** Only paths that belong to a recorded transfer may be opened from the renderer. */
+  const isKnownTransferPath = (filePath: string): boolean => {
+    if (!filePath) return false;
+    const normalized = path.resolve(filePath).toLowerCase();
+    return transferRepo.listTransfers().some((t) => t.finalPath && path.resolve(t.finalPath).toLowerCase() === normalized);
+  };
+
+  /**
+   * Sends a file into a conversation: one chunked transfer per recipient plus a `file`
+   * chat message that carries the attachment metadata (rendered as a file bubble).
+   */
+  const sendFileToConversation = async (
+    conversationId: string,
+    filePath: string,
+    options: { fileName?: string; caption?: string } = {}
+  ): Promise<MessageItem> => {
+    const messaging = getMessagingService();
+    if (!messaging) throw new Error('Messaging service not initialized');
+    const isProtected = guardConversation(conversationId);
+
+    const conv = conversationRepo.getConversationById(conversationId, localDeviceId(), true);
+    if (!conv) throw new Error(`Conversation ${conversationId} not found`);
+    const recipients = getRecipients(conv);
+    if (recipients.length === 0) throw new Error('This conversation has no other members to send the file to');
+
+    const transferIds: Record<string, string> = {};
+    let fileName = options.fileName ?? path.basename(filePath);
+    let fileSize = 0;
+    const failures: string[] = [];
+
+    for (const peerId of recipients) {
+      const transfer = await transferService.offerFile({ conversationId, peerDeviceId: peerId, filePath, fileName: options.fileName });
+      transferIds[peerId] = transfer.id;
+      fileName = transfer.fileName;
+      fileSize = transfer.fileSize;
+      if (transfer.status === 'failed') failures.push(transfer.errorMessage ?? 'unreachable');
+    }
+
+    if (failures.length === recipients.length) {
+      throw new Error(`Could not reach ${recipients.length > 1 ? 'any member' : 'the peer'}: ${failures[0]}. Make sure they are online.`);
+    }
+
+    const meta: FileAttachmentMeta = {
+      fileName,
+      fileSize,
+      mimeType: guessMimeType(fileName),
+      transferIds,
+      caption: options.caption?.trim() || undefined,
+    };
+    const content = JSON.stringify(meta);
+
+    if (conv.type === 'group') {
+      return messaging.sendGroupMessage(conv.id, content, 'file');
+    }
+    if (recipients.length > 1) {
+      return messaging.sendFanoutMessage(conv.id, recipients, content, 'file', isProtected);
+    }
+    return messaging.sendDirectMessage(conv.id, recipients[0]!, content, 'file', conv.type === 'private');
+  };
 
   // Window Controls
   ipcMain.handle(IpcChannels.WINDOW_MINIMIZE, () => {
@@ -199,7 +302,9 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
 
   // Devices & Network (Phase 2)
   ipcMain.handle(IpcChannels.DEVICES_LIST, () => {
-    return deviceRepo.getAllDevices();
+    // Never list this PC itself as a peer
+    const me = localDeviceId();
+    return deviceRepo.getAllDevices().filter((d) => d.id !== me);
   });
 
   ipcMain.handle(IpcChannels.DEVICES_REFRESH, async () => {
@@ -215,7 +320,18 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     if (!adapter) {
       throw new Error('LAN networking is not initialized. Please complete onboarding first.');
     }
-    return adapter.connectDirect(validated.ipAddress, validated.port);
+    try {
+      return await adapter.connectDirect(validated.ipAddress, validated.port);
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      if (/timed out|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH/i.test(msg)) {
+        throw new Error(
+          `Could not reach Arcwire at ${validated.ipAddress}:${validated.port}. Make sure Arcwire is open on that PC and ` +
+            `allowed through its Windows Firewall (on that PC: Settings → Windows Firewall → Allow).`
+        );
+      }
+      throw err;
+    }
   });
 
   ipcMain.handle(IpcChannels.DEVICES_TOGGLE_TRUST, (_event, rawInput: unknown) => {
@@ -239,13 +355,8 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   });
 
   ipcMain.handle(IpcChannels.CONVERSATIONS_GET, (_event, conversationId: string) => {
-    const isPrivate = privateRepo.isPrivateConversation(conversationId);
-    if (isPrivate) {
-      privateSession.requireUnlocked();
-    }
-    const profile = profileRepo.getProfile();
-    const localDeviceId = profile?.deviceId ?? '';
-    return conversationRepo.getConversationById(conversationId, localDeviceId, isPrivate);
+    const isProtected = guardConversation(conversationId);
+    return conversationRepo.getConversationById(conversationId, localDeviceId(), isProtected);
   });
 
   ipcMain.handle(IpcChannels.CONVERSATIONS_CREATE_DIRECT, (_event, peerDeviceId: string) => {
@@ -293,11 +404,9 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   });
 
   ipcMain.handle(IpcChannels.MESSAGES_LIST, (_event, rawInput: { conversationId: string; limit?: number }) => {
-    const isPrivate = privateRepo.isPrivateConversation(rawInput.conversationId);
-    if (isPrivate) {
-      privateSession.requireUnlocked();
-    }
-    return messageRepo.getMessages(rawInput.conversationId, rawInput.limit ?? 100);
+    guardConversation(rawInput.conversationId);
+    const limit = Math.min(Math.max(rawInput.limit ?? 200, 1), 2000);
+    return messageRepo.getMessages(rawInput.conversationId, limit);
   });
 
   ipcMain.handle(IpcChannels.MESSAGES_SEND, async (_event, rawInput: unknown) => {
@@ -305,32 +414,38 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     const messaging = getMessagingService();
     if (!messaging) throw new Error('Messaging service not initialized');
 
-    const isPrivate = privateRepo.isPrivateConversation(input.conversationId);
-    if (isPrivate) {
-      privateSession.requireUnlocked();
-    }
-
-    const profile = profileRepo.getProfile();
-    const conv = conversationRepo.getConversationById(input.conversationId, profile?.deviceId ?? '', isPrivate);
+    const isProtected = guardConversation(input.conversationId);
+    const conv = conversationRepo.getConversationById(input.conversationId, localDeviceId(), true);
     if (!conv) throw new Error(`Conversation ${input.conversationId} not found`);
+    const isPrivate = conv.type === 'private';
 
     if (conv.type === 'group') {
-      return messaging.sendGroupMessage(conv.id, input.content, input.contentType);
-    } else {
-      const peerId = conv.peerDeviceId || conv.memberDeviceIds?.find((id) => id !== profile?.deviceId);
-      if (!peerId) throw new Error('No peer ID found for conversation');
-      return messaging.sendDirectMessage(
-        conv.id,
-        peerId,
-        input.content,
-        input.contentType,
-        input.isEncrypted || isPrivate,
-        input.replyToId
+      return messaging.sendGroupMessage(conv.id, input.content, input.contentType, input.replyToId);
+    }
+
+    const recipients = getRecipients(conv);
+    if (recipients.length === 0) {
+      throw new Error(
+        isPrivate
+          ? 'No one has joined this private chat yet. Share an invitation code first.'
+          : 'No peer found for this conversation'
       );
     }
+    if (recipients.length > 1) {
+      return messaging.sendFanoutMessage(conv.id, recipients, input.content, input.contentType, isProtected, input.replyToId);
+    }
+    return messaging.sendDirectMessage(
+      conv.id,
+      recipients[0]!,
+      input.content,
+      input.contentType,
+      input.isEncrypted || isPrivate,
+      input.replyToId
+    );
   });
 
   ipcMain.handle(IpcChannels.MESSAGES_SEND_READ, async (_event, rawInput: { conversationId: string; peerDeviceId?: string }) => {
+    conversationRepo.setConversationFlags(rawInput.conversationId, { isMarkedUnread: false });
     const messaging = getMessagingService();
     if (messaging) {
       await messaging.markConversationRead(rawInput.conversationId, rawInput.peerDeviceId);
@@ -342,6 +457,109 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     if (messaging) {
       await messaging.sendTyping(rawInput.conversationId, rawInput.isTyping);
     }
+  });
+
+  // ==========================================
+  // Message actions (context menu)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.MESSAGES_DELETE, async (_event, rawInput: { messageId: string; forEveryone: boolean }) => {
+    guardMessage(rawInput.messageId);
+    const messaging = getMessagingService();
+    if (!messaging) {
+      if (rawInput.forEveryone) throw new Error('Messaging service not initialized');
+      messageRepo.deleteMessageLocally(rawInput.messageId);
+      return null;
+    }
+    return messaging.deleteMessage(rawInput.messageId, Boolean(rawInput.forEveryone));
+  });
+
+  ipcMain.handle(IpcChannels.MESSAGES_EDIT, async (_event, rawInput: { messageId: string; content: string }) => {
+    guardMessage(rawInput.messageId);
+    const content = String(rawInput.content ?? '').trim();
+    if (!content) throw new Error('Message cannot be empty');
+    const messaging = getMessagingService();
+    if (!messaging) throw new Error('Messaging service not initialized');
+    return messaging.editMessage(rawInput.messageId, content.slice(0, 20000));
+  });
+
+  ipcMain.handle(IpcChannels.MESSAGES_REACT, async (_event, rawInput: { messageId: string; emoji: string }) => {
+    guardMessage(rawInput.messageId);
+    const emoji = String(rawInput.emoji ?? '');
+    if (!emoji || emoji.length > 16) throw new Error('Invalid reaction');
+    const messaging = getMessagingService();
+    if (!messaging) throw new Error('Messaging service not initialized');
+    return messaging.reactToMessage(rawInput.messageId, emoji);
+  });
+
+  ipcMain.handle(IpcChannels.MESSAGES_SET_FLAGS, (_event, rawInput: { messageId: string; isPinned?: boolean; isStarred?: boolean }) => {
+    guardMessage(rawInput.messageId);
+    const updated = messageRepo.setMessageFlags(rawInput.messageId, {
+      isPinned: rawInput.isPinned,
+      isStarred: rawInput.isStarred,
+    });
+    if (!updated) throw new Error('Message not found');
+    return updated;
+  });
+
+  // ==========================================
+  // Conversation actions (context menu)
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.CONVERSATIONS_DELETE, (_event, conversationId: string) => {
+    guardConversation(conversationId);
+    conversationRepo.deleteConversation(conversationId);
+    sendToRenderer(IpcChannels.EVENT_CONVERSATION_REMOVED, { conversationId });
+  });
+
+  ipcMain.handle(IpcChannels.CONVERSATIONS_CLEAR, (_event, conversationId: string) => {
+    guardConversation(conversationId);
+    conversationRepo.clearConversation(conversationId);
+  });
+
+  ipcMain.handle(
+    IpcChannels.CONVERSATIONS_SET_FLAGS,
+    (
+      _event,
+      rawInput: { conversationId: string; isPinned?: boolean; isMuted?: boolean; isArchived?: boolean; isChatLocked?: boolean }
+    ) => {
+      const { conversationId } = rawInput;
+      guardConversation(conversationId);
+
+      if (rawInput.isChatLocked !== undefined) {
+        if (privateRepo.isPrivateConversation(conversationId)) {
+          throw new Error('Private conversations are always locked');
+        }
+        if (!privateSession.getStatus().hasCredential) {
+          throw new Error('Set up a Private Chats PIN first (open Private Chats), then lock this chat.');
+        }
+        if (!rawInput.isChatLocked) {
+          privateSession.requireUnlocked();
+        }
+      }
+
+      conversationRepo.setConversationFlags(conversationId, {
+        isPinned: rawInput.isPinned,
+        isMuted: rawInput.isMuted,
+        isArchived: rawInput.isArchived,
+        isChatLocked: rawInput.isChatLocked,
+      });
+
+      if (rawInput.isChatLocked !== undefined) {
+        // The chat moved between the normal and the locked list
+        sendToRenderer(IpcChannels.EVENT_CONVERSATION_REMOVED, { conversationId });
+        sendToRenderer(IpcChannels.EVENT_PRIVATE_LOCK_STATE, {
+          isUnlocked: privateSession.isUnlocked(),
+          lockedUntil: privateSession.getStatus().lockedUntil,
+        });
+      }
+      return conversationRepo.getConversationById(conversationId, localDeviceId(), true);
+    }
+  );
+
+  ipcMain.handle(IpcChannels.CONVERSATIONS_MARK_UNREAD, (_event, rawInput: { conversationId: string; unread: boolean }) => {
+    guardConversation(rawInput.conversationId);
+    conversationRepo.setConversationFlags(rawInput.conversationId, { isMarkedUnread: Boolean(rawInput.unread) });
   });
 
   ipcMain.handle(IpcChannels.MESSAGES_SEARCH, (_event, rawInput: unknown) => {
@@ -386,7 +604,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     return privateSession.createInvitation(input);
   });
 
-  ipcMain.handle(IpcChannels.PRIVATE_INVITATION_REDEEM, (_event, rawInput: unknown) => {
+  ipcMain.handle(IpcChannels.PRIVATE_INVITATION_REDEEM, async (_event, rawInput: unknown) => {
     const input = RedeemInvitationInputSchema.parse(rawInput);
     return privateSession.redeemInvitation(input);
   });
@@ -416,8 +634,37 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
 
   ipcMain.handle(IpcChannels.TRANSFERS_SEND_FILE, async (_event, rawInput: unknown) => {
     const input = SendFileInputSchema.parse(rawInput);
+    guardConversation(input.conversationId);
     return transferService.offerFile(input);
   });
+
+  ipcMain.handle(
+    IpcChannels.TRANSFERS_SEND_BUFFER,
+    async (
+      _event,
+      rawInput: { conversationId?: string; filePath?: string; fileName?: string; data?: Uint8Array; caption?: string }
+    ) => {
+      if (!rawInput?.conversationId) throw new Error('conversationId is required');
+
+      // 1. Real file on disk (file picker, drag & drop, pasted from Explorer)
+      if (rawInput.filePath) {
+        return sendFileToConversation(rawInput.conversationId, rawInput.filePath, { caption: rawInput.caption });
+      }
+
+      // 2. In-memory data (pasted screenshot / image)
+      if (!rawInput.data || !rawInput.fileName) throw new Error('A file path or file data is required');
+      const bytes = Buffer.from(rawInput.data);
+      if (bytes.length > MAX_BUFFER_UPLOAD_BYTES) {
+        throw new Error('Pasted file is too large. Use the attach button for files over 512 MB.');
+      }
+      const safeName = PathTraversalGuard.sanitizeFilename(rawInput.fileName) || `pasted-${Date.now()}`;
+      const dir = path.join(AppPaths.get().attachments, crypto.randomUUID());
+      await fs.promises.mkdir(dir, { recursive: true });
+      const target = path.join(dir, safeName);
+      await fs.promises.writeFile(target, bytes);
+      return sendFileToConversation(rawInput.conversationId, target, { caption: rawInput.caption });
+    }
+  );
 
   ipcMain.handle(IpcChannels.TRANSFERS_ACCEPT, async (_event, rawInput: unknown) => {
     const input = AcceptTransferInputSchema.parse(rawInput);
@@ -449,7 +696,74 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   });
 
   ipcMain.handle(IpcChannels.TRANSFERS_OPEN_FOLDER, async (_event, filePath: string) => {
-    shell.showItemInFolder(filePath);
+    if (filePath && isKnownTransferPath(filePath) && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+    } else {
+      // Fall back to the downloads folder
+      const dir = transferService.getDownloadsDir();
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      await shell.openPath(dir);
+    }
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_OPEN_FILE, async (_event, filePath: string) => {
+    if (!isKnownTransferPath(filePath)) throw new Error('This file is not part of a transfer');
+    if (!fs.existsSync(filePath)) throw new Error('File no longer exists on disk');
+    return shell.openPath(filePath);
+  });
+
+  ipcMain.handle(IpcChannels.TRANSFERS_SAVE_AS, async (_event, filePath: string) => {
+    if (!isKnownTransferPath(filePath) || !fs.existsSync(filePath)) throw new Error('File not available');
+    const win = getMainWindow();
+    const result = await dialog.showSaveDialog(win || (undefined as any), {
+      defaultPath: path.join(app.getPath('downloads'), path.basename(filePath)),
+    });
+    if (result.canceled || !result.filePath) return null;
+    await fs.promises.copyFile(filePath, result.filePath);
+    return result.filePath;
+  });
+
+  // ==========================================
+  // Media permissions & clipboard
+  // ==========================================
+
+  ipcMain.handle(IpcChannels.MEDIA_GET_ACCESS_STATUS, (): MediaAccessStatus => {
+    const read = (kind: 'microphone' | 'camera' | 'screen') => {
+      try {
+        return systemPreferences.getMediaAccessStatus(kind) as MediaAccessStatus['microphone'];
+      } catch {
+        return 'unknown' as const;
+      }
+    };
+    return { microphone: read('microphone'), camera: read('camera'), screen: read('screen') };
+  });
+
+  ipcMain.handle(IpcChannels.MEDIA_OPEN_PRIVACY_SETTINGS, async (_event, kind: 'microphone' | 'camera') => {
+    const uri = kind === 'camera' ? 'ms-settings:privacy-webcam' : 'ms-settings:privacy-microphone';
+    if (process.platform === 'win32') {
+      await shell.openExternal(uri);
+    }
+  });
+
+  ipcMain.handle(IpcChannels.CLIPBOARD_WRITE_TEXT, (_event, text: string) => {
+    clipboard.writeText(String(text ?? ''));
+  });
+
+  // ==========================================
+  // Windows Firewall (LAN reachability)
+  // ==========================================
+  const firewall = new FirewallService(() => {
+    const st = settingsRepo.getSettings();
+    return { tcp: st.tcpPort, udp: st.udpPort, signaling: st.signalingPort };
+  });
+
+  ipcMain.handle(IpcChannels.FIREWALL_STATUS, () => firewall.getStatus());
+
+  ipcMain.handle(IpcChannels.FIREWALL_FIX, async () => {
+    const status = await firewall.fix();
+    // Re-announce so peers discover us right away
+    getLanAdapter()?.scanNow();
+    return status;
   });
 
   // Forward transferService events to renderer
@@ -472,6 +786,10 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
     if (win && !win.isDestroyed()) {
       win.webContents.send(IpcChannels.EVENT_TRANSFER_COMPLETED, transfer);
     }
+  });
+
+  transferService.on('updated', (transfer) => {
+    sendToRenderer(IpcChannels.EVENT_TRANSFER_UPDATED, transfer);
   });
 
   transferService.on('failed', (data) => {

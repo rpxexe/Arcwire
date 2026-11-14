@@ -16,6 +16,7 @@ export interface DevicePersister {
     status: any;
   }): DeviceInfo;
   markDevicesOfflineOlderThan(thresholdMs: number): string[];
+  markAllOffline?(exceptIds?: string[]): void;
   getAllDevices(): DeviceInfo[];
   getDeviceById(id: string): DeviceInfo | null;
 }
@@ -39,12 +40,13 @@ export class DiscoveryCoordinator extends EventEmitter {
   constructor(localMetadata: LocalDeviceMetadata, options: DiscoveryCoordinatorOptions = {}) {
     super();
     this.networkManager = new NetworkInterfaceManager();
-    this.offlineTtlMs = options.offlineTtlMs ?? 60000;
+    // Peers announce every 10 s; three missed announcements => offline
+    this.offlineTtlMs = options.offlineTtlMs ?? 35000;
     this.deviceRepo = options.deviceRepo ?? null;
 
     this.udpService = new UdpDiscoveryService(localMetadata, {
       port: options.udpPort,
-      broadcastIntervalMs: options.broadcastIntervalMs,
+      broadcastIntervalMs: options.broadcastIntervalMs ?? 10000,
       networkManager: this.networkManager,
     });
 
@@ -94,7 +96,17 @@ export class DiscoveryCoordinator extends EventEmitter {
       }
     }
 
-    const payload: DeviceInfo = savedDevice ?? {
+    // Always report the address this announcement actually came from (the DB may still
+    // hold addresses from other networks the device was on before).
+    const payload: DeviceInfo = savedDevice
+      ? {
+          ...savedDevice,
+          ipAddress: peer.remoteAddress,
+          tcpPort: peer.tcpPort,
+          signalingPort: peer.signalingPort,
+          status: peer.status,
+        }
+      : {
       id: peer.deviceId,
       publicKey: peer.publicKey,
       displayName: peer.displayName,
@@ -115,6 +127,12 @@ export class DiscoveryCoordinator extends EventEmitter {
   }
 
   public async start(): Promise<void> {
+    // Statuses persisted by a previous session are stale: only peers heard from now are online.
+    try {
+      this.deviceRepo?.markAllOffline?.();
+    } catch (err) {
+      console.error('[Discovery Coordinator] Failed to reset device statuses:', err);
+    }
     await this.udpService.start();
     this.mdnsService.start();
 

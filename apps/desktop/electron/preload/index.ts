@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   IpcChannels,
   IpcApi,
@@ -48,6 +48,15 @@ const api: IpcApi = {
   markMessagesRead: (conversationId) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND_READ, { conversationId }),
   sendTyping: (conversationId, isTyping) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEND_TYPING, { conversationId, isTyping }),
   searchMessages: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_SEARCH, input),
+  deleteMessage: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_DELETE, input),
+  editMessage: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_EDIT, input),
+  reactToMessage: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_REACT, input),
+  setMessageFlags: (input) => ipcRenderer.invoke(IpcChannels.MESSAGES_SET_FLAGS, input),
+  deleteConversation: (conversationId) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_DELETE, conversationId),
+  clearConversation: (conversationId) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_CLEAR, conversationId),
+  setConversationFlags: (input) => ipcRenderer.invoke(IpcChannels.CONVERSATIONS_SET_FLAGS, input),
+  markConversationUnread: (conversationId, unread) =>
+    ipcRenderer.invoke(IpcChannels.CONVERSATIONS_MARK_UNREAD, { conversationId, unread }),
 
   // Private Chat System (Phase 4)
   getPrivateStatus: () => ipcRenderer.invoke(IpcChannels.PRIVATE_STATUS),
@@ -71,6 +80,24 @@ const api: IpcApi = {
   cancelTransfer: (transferId) => ipcRenderer.invoke(IpcChannels.TRANSFERS_CANCEL, transferId),
   selectFile: () => ipcRenderer.invoke(IpcChannels.TRANSFERS_SELECT_FILE),
   openTransferFolder: (filePath) => ipcRenderer.invoke(IpcChannels.TRANSFERS_OPEN_FOLDER, filePath),
+  openTransferFile: (filePath) => ipcRenderer.invoke(IpcChannels.TRANSFERS_OPEN_FILE, filePath),
+  saveTransferAs: (filePath) => ipcRenderer.invoke(IpcChannels.TRANSFERS_SAVE_AS, filePath),
+  sendFileToConversation: (input) => ipcRenderer.invoke(IpcChannels.TRANSFERS_SEND_BUFFER, input),
+  sendBufferToConversation: (input) => ipcRenderer.invoke(IpcChannels.TRANSFERS_SEND_BUFFER, input),
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
+
+  // Media permissions & clipboard
+  getMediaAccessStatus: () => ipcRenderer.invoke(IpcChannels.MEDIA_GET_ACCESS_STATUS),
+  openPrivacySettings: (kind) => ipcRenderer.invoke(IpcChannels.MEDIA_OPEN_PRIVACY_SETTINGS, kind),
+  writeClipboardText: (text) => ipcRenderer.invoke(IpcChannels.CLIPBOARD_WRITE_TEXT, text),
+  getFirewallStatus: () => ipcRenderer.invoke(IpcChannels.FIREWALL_STATUS),
+  fixFirewall: () => ipcRenderer.invoke(IpcChannels.FIREWALL_FIX),
 
   // Shared Folders (Phase 5)
   getSharedFolders: () => ipcRenderer.invoke(IpcChannels.FOLDERS_LIST),
@@ -125,6 +152,21 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, data: ReceiptEventData) => callback(data);
     ipcRenderer.on(IpcChannels.EVENT_MESSAGE_RECEIPT, handler);
     return () => ipcRenderer.removeListener(IpcChannels.EVENT_MESSAGE_RECEIPT, handler);
+  },
+  onMessageUpdated: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: MessageItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_MESSAGE_UPDATED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_MESSAGE_UPDATED, handler);
+  },
+  onConversationRemoved: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { conversationId: string }) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_CONVERSATION_REMOVED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_CONVERSATION_REMOVED, handler);
+  },
+  onTransferUpdated: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: TransferItem) => callback(data);
+    ipcRenderer.on(IpcChannels.EVENT_TRANSFER_UPDATED, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.EVENT_TRANSFER_UPDATED, handler);
   },
   onTypingIndicator: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: TypingEventData) => callback(data);

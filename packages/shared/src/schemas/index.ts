@@ -185,6 +185,7 @@ export const GroupMessagePayloadSchema = z.object({
   content: z.string(),
   contentType: z.enum(['text', 'file', 'system']).default('text'),
   sentAt: z.number(),
+  replyToId: z.string().nullable().optional(),
 });
 export type GroupMessagePayload = z.infer<typeof GroupMessagePayloadSchema>;
 
@@ -542,12 +543,25 @@ export const ScreenShareOptionsSchema = z.object({
 });
 export type ScreenShareOptions = z.infer<typeof ScreenShareOptionsSchema>;
 
+export const CallStreamStatsSchema = z.object({
+  resolution: z.string(),
+  fps: z.number(),
+  bitrateKbps: z.number(),
+  codec: z.string().optional(),
+  isScreen: z.boolean().optional(),
+});
+export type CallStreamStats = z.infer<typeof CallStreamStatsSchema>;
+
 export const CallStatsSchema = z.object({
   resolution: z.string(),
   fps: z.number(),
   bitrateKbps: z.number(),
   packetLossPercentage: z.number(),
   latencyMs: z.number().optional(),
+  outbound: CallStreamStatsSchema.nullable().optional(),
+  inbound: CallStreamStatsSchema.nullable().optional(),
+  audioBitrateKbps: z.number().optional(),
+  jitterMs: z.number().optional(),
 });
 export type CallStats = z.infer<typeof CallStatsSchema>;
 

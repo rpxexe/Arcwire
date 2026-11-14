@@ -70,7 +70,25 @@ export interface ConversationItem {
   hostDeviceId?: string; // for group chats
   isHost?: boolean;
   description?: string | null;
+  isPinned?: boolean;
+  isMuted?: boolean;
+  isArchived?: boolean;
+  /** Normal (direct/group) chat moved behind the private-chat PIN lock */
+  isChatLocked?: boolean;
+  /** Manually marked as unread by the user */
+  isMarkedUnread?: boolean;
 }
+
+export interface FileAttachmentMeta {
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  /** Map of recipient deviceId -> transferId (one transfer per recipient) */
+  transferIds: Record<string, string>;
+  caption?: string;
+}
+
+export type MessageReactions = Record<string, string[]>; // emoji -> deviceIds
 
 export interface MessageItem {
   id: string;
@@ -86,6 +104,29 @@ export interface MessageItem {
   isEncrypted: boolean;
   replyToId?: string | null;
   status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  isDeleted?: boolean;
+  editedAt?: number | null;
+  reactions?: MessageReactions;
+  isPinned?: boolean;
+  isStarred?: boolean;
+}
+
+export interface FirewallStatus {
+  supported: boolean;
+  /** Inbound allow rule exists for this executable */
+  allowed: boolean;
+  /** A block rule exists for this executable (block rules override allow rules) */
+  blocked: boolean;
+  /** Network category of the active connection, e.g. Public / Private */
+  networkCategory?: string;
+  executable: string;
+  error?: string;
+}
+
+export interface MediaAccessStatus {
+  microphone: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
+  camera: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
+  screen: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
 }
 
 export interface ReceiptEventData {
@@ -157,6 +198,20 @@ export interface IpcApi {
   markMessagesRead: (conversationId: string) => Promise<void>;
   sendTyping: (conversationId: string, isTyping: boolean) => Promise<void>;
   searchMessages: (input: SearchMessagesInput) => Promise<MessageItem[]>;
+  deleteMessage: (input: { messageId: string; forEveryone: boolean }) => Promise<MessageItem | null>;
+  editMessage: (input: { messageId: string; content: string }) => Promise<MessageItem>;
+  reactToMessage: (input: { messageId: string; emoji: string }) => Promise<MessageItem>;
+  setMessageFlags: (input: { messageId: string; isPinned?: boolean; isStarred?: boolean }) => Promise<MessageItem>;
+  deleteConversation: (conversationId: string) => Promise<void>;
+  clearConversation: (conversationId: string) => Promise<void>;
+  setConversationFlags: (input: {
+    conversationId: string;
+    isPinned?: boolean;
+    isMuted?: boolean;
+    isArchived?: boolean;
+    isChatLocked?: boolean;
+  }) => Promise<ConversationItem | null>;
+  markConversationUnread: (conversationId: string, unread: boolean) => Promise<void>;
 
   // Private Chat System (Phase 4)
   getPrivateStatus: () => Promise<PrivateStatus>;
@@ -180,6 +235,24 @@ export interface IpcApi {
   cancelTransfer: (transferId: string) => Promise<void>;
   selectFile: () => Promise<string[] | null>;
   openTransferFolder: (filePath: string) => Promise<void>;
+  openTransferFile: (filePath: string) => Promise<string>;
+  saveTransferAs: (filePath: string) => Promise<string | null>;
+  sendFileToConversation: (input: { conversationId: string; filePath: string; caption?: string }) => Promise<MessageItem>;
+  sendBufferToConversation: (input: {
+    conversationId: string;
+    fileName: string;
+    mimeType?: string;
+    data: Uint8Array;
+    caption?: string;
+  }) => Promise<MessageItem>;
+  getPathForFile: (file: File) => string;
+
+  // Media permissions
+  getMediaAccessStatus: () => Promise<MediaAccessStatus>;
+  openPrivacySettings: (kind: 'microphone' | 'camera') => Promise<void>;
+  writeClipboardText: (text: string) => Promise<void>;
+  getFirewallStatus: () => Promise<FirewallStatus>;
+  fixFirewall: () => Promise<FirewallStatus>;
 
   // Shared Folders (Phase 5)
   getSharedFolders: () => Promise<SharedFolderItem[]>;
@@ -207,6 +280,9 @@ export interface IpcApi {
   onDeviceUpdated: (callback: (device: DeviceInfo) => void) => () => void;
   onMessageReceived: (callback: (message: MessageItem) => void) => () => void;
   onMessageReceipt: (callback: (receipt: ReceiptEventData) => void) => () => void;
+  onMessageUpdated: (callback: (message: MessageItem) => void) => () => void;
+  onConversationRemoved: (callback: (data: { conversationId: string }) => void) => () => void;
+  onTransferUpdated: (callback: (transfer: TransferItem) => void) => () => void;
   onTypingIndicator: (callback: (typing: TypingEventData) => void) => () => void;
   onConversationUpdated: (callback: (conversation: ConversationItem) => void) => () => void;
   onPrivateLockStateChange: (callback: (state: { isUnlocked: boolean; lockedUntil?: number | null }) => void) => () => void;

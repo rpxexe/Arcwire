@@ -8,6 +8,7 @@
 [![ORM](https://img.shields.io/badge/Drizzle-ORM-C5F74F?logo=drizzle)](https://orm.drizzle.team/)
 [![Styling](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?logo=tailwindcss)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#)
+[![Release](https://img.shields.io/github/v/release/rpxexe/Arcwire?label=Download)](https://github.com/rpxexe/Arcwire/releases/latest)
 
 A high-performance, zero-cloud Windows desktop messenger designed for local area networks (Wi-Fi and Ethernet). **IP Messenger operates completely offline without internet connectivity, third-party authentication servers, or external databases**, delivering direct node-to-node communications with military-grade local cryptography.
 
@@ -15,6 +16,10 @@ A high-performance, zero-cloud Windows desktop messenger designed for local area
 
 ## Table of Contents
 
+- [Download & Install](#download--install)
+- [Features](#features)
+- [What's New in 1.1.0](#whats-new-in-110)
+- [Connecting Two PCs (Firewall Setup)](#connecting-two-pcs-firewall-setup)
 - [Architectural Highlights](#architectural-highlights)
 - [Technology Stack](#technology-stack)
 - [Monorepo Structure](#monorepo-structure)
@@ -25,7 +30,78 @@ A high-performance, zero-cloud Windows desktop messenger designed for local area
 - [Development & Build Commands](#development--build-commands)
 - [Testing Strategy](#testing-strategy)
 - [Implementation Roadmap](#implementation-roadmap)
+- [Changelog](#changelog)
 - [Documentation Index](#documentation-index)
+
+---
+
+## Download & Install
+
+1. Download **`Arcwire Setup <version>.exe`** from the [latest release](https://github.com/rpxexe/Arcwire/releases/latest).
+2. Run it on every PC that should chat. Installing over an older version keeps your profile and chats.
+3. The installer is not code-signed yet: if Windows SmartScreen shows *"Windows protected your PC"*, click
+   **More info → Run anyway**.
+4. When Windows Firewall asks, allow Arcwire on **both Private and Public** networks
+   (or use **Settings → Windows Firewall → Allow through firewall** inside the app).
+
+All PCs must be on the same Wi-Fi / LAN. Within ~30 seconds they appear under **Chats → +** as active devices.
+
+---
+
+## Features
+
+| Area | What you get |
+|---|---|
+| **Discovery** | Automatic LAN discovery of active devices with their current IP, manual *Direct IP Connect* |
+| **Chats** | 1-to-1 and group chats, delivery receipts (single tick → double tick → read), typing indicator, search |
+| **Chat menu** | Right-click a chat: pin, mark read/unread, mute, archive, lock, call, send file, copy name/IP, clear history, delete |
+| **Message menu** | Instagram-style: quick reactions, reply, copy, edit, forward, pin, star, message info, delete for me, unsend for everyone; hover actions and double-click to ❤️ |
+| **Emoji & files** | Emoji picker (offline), paste files and screenshots with **Ctrl+V**, drag & drop, file bubbles with image preview, progress, pause/resume, open / show in folder |
+| **File transfer** | 256 KB chunked streaming with SHA-256 verification; received files go to `Downloads\Arcwire` |
+| **Calls** | Voice, video and screen sharing over WebRTC, switch screen source, live sending/receiving statistics |
+| **Private chats** | PIN-protected workspace (Argon2id), PRV-XXXX-XXXX invitation codes that work across PCs, lock any normal chat, auto-lock on Windows lock/sleep |
+| **Permissions** | Microphone/camera permission prompt and Windows Firewall status with a one-click fix |
+
+---
+
+## What's New in 1.1.0
+
+**New**
+- Chat and message context menus built with shadcn/ui (Radix).
+- Emoji picker, Ctrl+V file/screenshot pasting, drag & drop and inline file bubbles.
+- Message reactions, edit, forward, pin, star, unsend for everyone (synced to other participants).
+- "Lock chat" moves any chat behind the Private Chats PIN.
+- Microphone/camera permission prompt and **Settings → Windows Firewall** one-click allow.
+- *New Direct Chat* shows only devices active on the current network, with Rescan.
+
+**Fixed**
+- File sharing: the `TransferManager` module was missing from the repository (excluded by `.gitignore`); chunk-write race, empty files and silent network errors fixed.
+- Screen sharing: remote side was never notified; screen calls started audio-only; camera track leaked.
+- Call statistics showed placeholder numbers and mixed camera/screen streams; now real per-direction stats.
+- Invitation tokens only worked on the PC that created them; now redeemed over the LAN.
+- Creating a private chat failed with a foreign-key error.
+- Sending a message blocked for up to 8 s and stayed on the clock icon after a retry.
+- Devices showed an outdated IP address and stale "online" status; own PC appeared in the peer list.
+
+---
+
+## Connecting Two PCs (Firewall Setup)
+
+Arcwire uses **UDP 45820** (discovery) and **TCP 45821 / 45822** (messages, files, calls). If PCs cannot see each
+other although they are on the same Wi-Fi, Windows Firewall is almost always the cause.
+
+**Easiest:** in Arcwire open **Settings → Windows Firewall → Allow through firewall** on *each* PC and accept the
+administrator prompt.
+
+**Manually** (Administrator PowerShell on each PC):
+
+```powershell
+netsh advfirewall firewall add rule name="Arcwire LAN TCP" dir=in action=allow protocol=TCP localport=45821-45822 profile=any
+netsh advfirewall firewall add rule name="Arcwire LAN UDP" dir=in action=allow protocol=UDP localport=45820 profile=any
+```
+
+Block rules override allow rules: open `wf.msc` → **Inbound Rules** and delete any *Arcwire* / *Electron* rule with a
+red icon. Check from the other PC with `Test-NetConnection <ip> -Port 45821` (`TcpTestSucceeded : True`).
 
 ---
 
@@ -147,9 +223,10 @@ All application state is preserved locally inside the user's roaming directory `
 
 ## Installation & Setup
 
-1. **Clone or enter the project repository:**
+1. **Clone the repository:**
    ```powershell
-   cd c:\Rishabh\ip-messenger
+   git clone https://github.com/rpxexe/Arcwire.git
+   cd Arcwire
    ```
 
 2. **Install all workspace dependencies:**
@@ -161,6 +238,13 @@ All application state is preserved locally inside the user's roaming directory `
    ```powershell
    powershell.exe -ExecutionPolicy Bypass -File "scripts/setup-sqlite.ps1"
    ```
+   The script reads the installed `better-sqlite3` version and downloads the matching Electron (ABI 132) binary,
+   so re-run it after any `pnpm install` that changes that version.
+
+> **Troubleshooting:** if Electron exits with `Cannot read properties of undefined` right at startup, your shell has
+> `ELECTRON_RUN_AS_NODE=1` set (VS Code terminals often do). Clear it with `Remove-Item Env:ELECTRON_RUN_AS_NODE`.
+> With pnpm 10+, any dependency whose build script is not listed under `allowBuilds` in `pnpm-workspace.yaml`
+> makes `pnpm install` fail with `ERR_PNPM_IGNORED_BUILDS`; add it there (true to run, false to skip).
 
 ---
 
@@ -251,6 +335,16 @@ IP Messenger enforces multi-tiered testing:
 - [x] **Phase 8: Production Hardening & Windows Installer**
   - [x] Automated NSIS Windows installer via `electron-builder`.
   - [x] Multi-PC LAN verification and performance benchmarking.
+
+---
+
+## Changelog
+
+### 1.1.0
+See [What's New in 1.1.0](#whats-new-in-110). Database changes are additive and applied automatically on first launch.
+
+### 1.0.0
+Initial release: phases 1–8 of the implementation roadmap.
 
 ---
 

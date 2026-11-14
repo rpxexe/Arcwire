@@ -23,7 +23,23 @@ export class MessageRepository {
       deliveredAt: r.deliveredAt,
       readAt: r.readAt,
       isEncrypted: Boolean(r.isEncrypted),
+      replyToId: r.replyToId ?? null,
+      isDeleted: Boolean(r.isDeleted),
+      editedAt: r.editedAt ?? null,
+      reactions: this.parseReactions(r.reactions),
+      isPinned: Boolean(r.isPinned),
+      isStarred: Boolean(r.isStarred),
     };
+  }
+
+  private parseReactions(raw: string | null | undefined): Record<string, string[]> {
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
   }
 
   public getMessages(conversationId: string, limit: number = 100): MessageItem[] {
@@ -32,11 +48,12 @@ export class MessageRepository {
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
-      .orderBy(asc(messages.sequence))
+      .orderBy(desc(messages.sentAt), desc(messages.sequence))
       .limit(limit)
       .all();
 
-    return rows.map((r) => this.mapMessageRow(r));
+    // Return the most recent `limit` messages in chronological order
+    return rows.reverse().map((r) => this.mapMessageRow(r));
   }
 
   public getMessageById(id: string): MessageItem | null {
@@ -83,6 +100,7 @@ export class MessageRepository {
         deliveredAt: msg.deliveredAt || null,
         readAt: msg.readAt || null,
         isEncrypted: msg.isEncrypted ? 1 : 0,
+        replyToId: msg.replyToId ?? null,
       })
       .onConflictDoNothing()
       .run();
@@ -190,6 +208,82 @@ export class MessageRepository {
     }
   }
 
+  // ==========================================
+  // Message actions (delete / edit / react / flags)
+  // ==========================================
+
+  /** Permanently removes a message from the local database ("delete for me"). */
+  public deleteMessageLocally(id: string): boolean {
+    const db = this.dbService.getDb();
+    const result = db.delete(messages).where(eq(messages.id, id)).run();
+    return result.changes > 0;
+  }
+
+  /** Tombstones a message ("delete for everyone"): content is wiped, row kept for ordering. */
+  public markMessageDeleted(id: string): MessageItem | null {
+    const db = this.dbService.getDb();
+    db.update(messages)
+      .set({ isDeleted: 1, content: '', reactions: null, isPinned: 0, isStarred: 0 })
+      .where(eq(messages.id, id))
+      .run();
+    return this.getMessageById(id);
+  }
+
+  public editMessageContent(id: string, content: string, editedAt: number = Date.now()): MessageItem | null {
+    const db = this.dbService.getDb();
+    db.update(messages)
+      .set({ content, editedAt })
+      .where(and(eq(messages.id, id), eq(messages.isDeleted, 0)))
+      .run();
+    return this.getMessageById(id);
+  }
+
+  /**
+   * Toggles (or explicitly sets) a reaction emoji for a device.
+   * A device may hold a single reaction per message (Instagram-style): choosing a
+   * new emoji replaces the previous one; choosing the same emoji removes it.
+   */
+  public toggleReaction(id: string, deviceId: string, emoji: string, active?: boolean): MessageItem | null {
+    const current = this.getMessageById(id);
+    if (!current || current.isDeleted) return current;
+
+    const reactions: Record<string, string[]> = { ...(current.reactions ?? {}) };
+    const hadThis = (reactions[emoji] ?? []).includes(deviceId);
+    const shouldBeActive = active ?? !hadThis;
+
+    for (const key of Object.keys(reactions)) {
+      reactions[key] = (reactions[key] ?? []).filter((d) => d !== deviceId);
+      if (reactions[key]!.length === 0) delete reactions[key];
+    }
+    if (shouldBeActive) {
+      reactions[emoji] = [...(reactions[emoji] ?? []), deviceId];
+    }
+
+    const db = this.dbService.getDb();
+    db.update(messages)
+      .set({ reactions: Object.keys(reactions).length > 0 ? JSON.stringify(reactions) : null })
+      .where(eq(messages.id, id))
+      .run();
+    return this.getMessageById(id);
+  }
+
+  public setMessageFlags(id: string, flags: { isPinned?: boolean; isStarred?: boolean }): MessageItem | null {
+    const db = this.dbService.getDb();
+    const update: Partial<typeof messages.$inferInsert> = {};
+    if (flags.isPinned !== undefined) update.isPinned = flags.isPinned ? 1 : 0;
+    if (flags.isStarred !== undefined) update.isStarred = flags.isStarred ? 1 : 0;
+    if (Object.keys(update).length > 0) {
+      db.update(messages).set(update).where(eq(messages.id, id)).run();
+    }
+    return this.getMessageById(id);
+  }
+
+  public deleteMessagesForConversation(conversationId: string): number {
+    const db = this.dbService.getDb();
+    const result = db.delete(messages).where(eq(messages.conversationId, conversationId)).run();
+    return result.changes;
+  }
+
   public searchMessages(query: string, conversationId?: string, includePrivate: boolean = false): MessageItem[] {
     const db = this.dbService.getDb();
     const term = `%${query}%`;
@@ -210,7 +304,7 @@ export class MessageRepository {
       const rows = db
         .select()
         .from(messages)
-        .where(and(eq(messages.conversationId, conversationId), like(messages.content, term)))
+        .where(and(eq(messages.conversationId, conversationId), like(messages.content, term), eq(messages.isDeleted, 0)))
         .orderBy(desc(messages.sentAt))
         .limit(50)
         .all();
@@ -223,7 +317,7 @@ export class MessageRepository {
       const rows = db
         .select()
         .from(messages)
-        .where(like(messages.content, term))
+        .where(and(like(messages.content, term), eq(messages.isDeleted, 0)))
         .orderBy(desc(messages.sentAt))
         .limit(50)
         .all();
@@ -234,7 +328,7 @@ export class MessageRepository {
     const nonPrivateConvIds = db
       .select({ id: conversations.id })
       .from(conversations)
-      .where(ne(conversations.type, 'private'))
+      .where(and(ne(conversations.type, 'private'), eq(conversations.isChatLocked, 0)))
       .all()
       .map((c) => c.id);
 
@@ -245,7 +339,7 @@ export class MessageRepository {
     const rows = db
       .select()
       .from(messages)
-      .where(and(inArray(messages.conversationId, nonPrivateConvIds), like(messages.content, term)))
+      .where(and(inArray(messages.conversationId, nonPrivateConvIds), like(messages.content, term), eq(messages.isDeleted, 0)))
       .orderBy(desc(messages.sentAt))
       .limit(50)
       .all();

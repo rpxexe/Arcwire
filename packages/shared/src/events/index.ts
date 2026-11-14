@@ -15,6 +15,9 @@ export enum IpmEventType {
   MESSAGE_DELIVERED = 'MESSAGE_DELIVERED',
   MESSAGE_READ = 'MESSAGE_READ',
   TYPING_INDICATOR = 'TYPING_INDICATOR',
+  MESSAGE_DELETE = 'MESSAGE_DELETE',
+  MESSAGE_EDIT = 'MESSAGE_EDIT',
+  MESSAGE_REACTION = 'MESSAGE_REACTION',
 
   // Group Messaging
   GROUP_CREATE = 'GROUP_CREATE',
@@ -27,6 +30,8 @@ export enum IpmEventType {
   PRIVATE_INVITE = 'PRIVATE_INVITE',
   PRIVATE_JOIN_REQUEST = 'PRIVATE_JOIN_REQUEST',
   PRIVATE_JOIN_ACCEPTED = 'PRIVATE_JOIN_ACCEPTED',
+  PRIVATE_JOIN_REJECTED = 'PRIVATE_JOIN_REJECTED',
+  PRIVATE_MEMBER_ADDED = 'PRIVATE_MEMBER_ADDED',
   PRIVATE_UNLOCK = 'PRIVATE_UNLOCK',
   PRIVATE_MESSAGE = 'PRIVATE_MESSAGE',
 
@@ -96,6 +101,14 @@ export enum IpcChannels {
   MESSAGES_SEND_READ = 'messages:send-read',
   MESSAGES_SEND_TYPING = 'messages:send-typing',
   MESSAGES_SEARCH = 'messages:search',
+  MESSAGES_DELETE = 'messages:delete',
+  MESSAGES_EDIT = 'messages:edit',
+  MESSAGES_REACT = 'messages:react',
+  MESSAGES_SET_FLAGS = 'messages:set-flags',
+  CONVERSATIONS_DELETE = 'conversations:delete',
+  CONVERSATIONS_CLEAR = 'conversations:clear',
+  CONVERSATIONS_SET_FLAGS = 'conversations:set-flags',
+  CONVERSATIONS_MARK_UNREAD = 'conversations:mark-unread',
 
   // Private Chat System (Phase 4)
   PRIVATE_STATUS = 'private:status',
@@ -119,6 +132,20 @@ export enum IpcChannels {
   TRANSFERS_CANCEL = 'transfers:cancel',
   TRANSFERS_SELECT_FILE = 'transfers:select-file',
   TRANSFERS_OPEN_FOLDER = 'transfers:open-folder',
+  TRANSFERS_OPEN_FILE = 'transfers:open-file',
+  TRANSFERS_SEND_BUFFER = 'transfers:send-buffer',
+  TRANSFERS_SAVE_AS = 'transfers:save-as',
+
+  // Media permissions
+  MEDIA_GET_ACCESS_STATUS = 'media:get-access-status',
+  MEDIA_OPEN_PRIVACY_SETTINGS = 'media:open-privacy-settings',
+
+  // Clipboard
+  CLIPBOARD_WRITE_TEXT = 'clipboard:write-text',
+
+  // Windows Firewall
+  FIREWALL_STATUS = 'firewall:status',
+  FIREWALL_FIX = 'firewall:fix',
 
   // Shared Folders (Phase 5)
   FOLDERS_LIST = 'folders:list',
@@ -150,6 +177,9 @@ export enum IpcChannels {
   EVENT_DEVICE_UPDATED = 'event:device-updated',
   EVENT_MESSAGE_RECEIVED = 'event:message-received',
   EVENT_MESSAGE_RECEIPT = 'event:message-receipt',
+  EVENT_MESSAGE_UPDATED = 'event:message-updated',
+  EVENT_CONVERSATION_REMOVED = 'event:conversation-removed',
+  EVENT_TRANSFER_UPDATED = 'event:transfer-updated',
   EVENT_TYPING_INDICATOR = 'event:typing-indicator',
   EVENT_CONVERSATION_UPDATED = 'event:conversation-updated',
   EVENT_PRIVATE_LOCK_STATE = 'event:private-lock-state',

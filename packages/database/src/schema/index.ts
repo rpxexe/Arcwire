@@ -60,6 +60,10 @@ export const conversations = sqliteTable('conversations', {
   lastMessageId: text('last_message_id'),
   lastActivityAt: integer('last_activity_at').notNull(),
   isArchived: integer('is_archived').notNull().default(0),
+  isPinned: integer('is_pinned').notNull().default(0),
+  isMuted: integer('is_muted').notNull().default(0),
+  isChatLocked: integer('is_chat_locked').notNull().default(0),
+  isMarkedUnread: integer('is_marked_unread').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [
@@ -90,6 +94,12 @@ export const messages = sqliteTable('messages', {
   deliveredAt: integer('delivered_at'),
   readAt: integer('read_at'),
   isEncrypted: integer('is_encrypted').notNull().default(0),
+  replyToId: text('reply_to_id'),
+  isDeleted: integer('is_deleted').notNull().default(0),
+  editedAt: integer('edited_at'),
+  reactions: text('reactions'),
+  isPinned: integer('is_pinned').notNull().default(0),
+  isStarred: integer('is_starred').notNull().default(0),
 }, (t) => [
   index('idx_messages_conversation').on(t.conversationId, t.sequence),
   index('idx_messages_status').on(t.deliveryStatus),

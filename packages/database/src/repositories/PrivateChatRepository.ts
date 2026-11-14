@@ -201,6 +201,66 @@ export class PrivateChatRepository {
     }
   }
 
+  /** Inserts a placeholder device row (if missing) so FK constraints on members hold. */
+  public ensureDeviceRow(deviceId: string, displayName: string = 'LAN Peer', publicKey: string = ''): void {
+    if (!deviceId) return;
+    const now = Date.now();
+    this.dbService
+      .getRawSqlite()
+      .prepare(
+        `INSERT OR IGNORE INTO devices (id, public_key, display_name, hostname, last_seen, status, is_blocked, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'offline', 0, ?, ?)`
+      )
+      .run(deviceId, publicKey, displayName, 'lan-peer', now, now, now);
+  }
+
+  /** Raw export of a private conversation, used to hand it to a device redeeming an invite. */
+  public exportPrivateConversation(id: string): {
+    id: string;
+    title: string;
+    creatorDeviceId: string;
+    sessionKeyHash: string;
+    memberDeviceIds: string[];
+  } | null {
+    const db = this.dbService.getDb();
+    const pConv = db.select().from(privateConversations).where(eq(privateConversations.id, id)).limit(1).all()[0];
+    if (!pConv) return null;
+    const memberDeviceIds = db
+      .select()
+      .from(privateMembers)
+      .where(eq(privateMembers.privateConversationId, id))
+      .all()
+      .map((m) => m.deviceId);
+    return {
+      id: pConv.id,
+      title: pConv.title,
+      creatorDeviceId: pConv.creatorDeviceId,
+      sessionKeyHash: pConv.sessionKeyHash,
+      memberDeviceIds,
+    };
+  }
+
+  /** Imports a private conversation received from the inviting device. */
+  public importPrivateConversation(record: {
+    id: string;
+    title: string;
+    creatorDeviceId: string;
+    sessionKeyHash: string;
+    memberDeviceIds: string[];
+  }): void {
+    const allMembers = Array.from(new Set([record.creatorDeviceId, ...record.memberDeviceIds]));
+    for (const deviceId of allMembers) this.ensureDeviceRow(deviceId);
+    this.createPrivateConversation({
+      id: record.id,
+      title: record.title,
+      creatorDeviceId: record.creatorDeviceId,
+      sessionKeyHash: record.sessionKeyHash,
+    });
+    for (const deviceId of allMembers) {
+      this.addPrivateMember(record.id, deviceId, deviceId === record.creatorDeviceId ? 'owner' : 'member');
+    }
+  }
+
   public addPrivateMember(
     privateConversationId: string,
     deviceId: string,
