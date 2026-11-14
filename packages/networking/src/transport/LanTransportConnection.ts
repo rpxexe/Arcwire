@@ -61,6 +61,11 @@ export class LanTransportConnection extends EventEmitter implements TransportCon
     });
   }
 
+  /** True while the socket can still carry frames. */
+  public get isOpen(): boolean {
+    return !this.isClosing && !this.socket.destroyed && this.socket.writable;
+  }
+
   public async send(message: NetworkEnvelope): Promise<void> {
     if (this.isClosing || this.socket.destroyed) {
       throw new Error(`Cannot send message on closed socket to peer ${this.peerId || this.remoteAddress}`);

@@ -60,6 +60,12 @@ process.on('unhandledRejection', (reason) => {
   logCrash('UNHANDLED_REJECTION', reason);
 });
 
+// WebRTC on a LAN: expose real host IPs in ICE candidates instead of random "<uuid>.local"
+// mDNS names. Windows PCs frequently cannot resolve those names from each other, which
+// leaves calls stuck in "Connecting…". Arcwire never contacts STUN/TURN servers, so these
+// candidates only ever travel to authenticated peers over the local signaling channel.
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
+
 // Privileged scheme used to preview transferred media (images/video/audio) inside chat bubbles.
 protocol.registerSchemesAsPrivileged([
   {

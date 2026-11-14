@@ -19,6 +19,7 @@ export interface PrivateCredentialRecord {
   failedAttempts: number;
   lockedUntil: number | null;
   recoveryHint: string | null;
+  recoveryHash?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -72,6 +73,49 @@ export class PrivateChatRepository {
         })
         .run();
     }
+  }
+
+  /** Replaces the PIN hash (keeps the recovery key) and clears the lockout counter. */
+  public updatePasswordHash(passwordHash: string, salt: string, recoveryHint?: string): void {
+    const cred = this.getCredential();
+    if (!cred) throw new Error('No private chat credential is configured');
+    this.dbService
+      .getDb()
+      .update(privateCredentials)
+      .set({
+        passwordHash,
+        salt,
+        failedAttempts: 0,
+        lockedUntil: null,
+        recoveryHint: recoveryHint === undefined ? cred.recoveryHint : recoveryHint || null,
+        updatedAt: Date.now(),
+      })
+      .where(eq(privateCredentials.id, cred.id))
+      .run();
+  }
+
+  public setRecoveryHash(recoveryHash: string | null): void {
+    const cred = this.getCredential();
+    if (!cred) throw new Error('No private chat credential is configured');
+    this.dbService
+      .getDb()
+      .update(privateCredentials)
+      .set({ recoveryHash, updatedAt: Date.now() })
+      .where(eq(privateCredentials.id, cred.id))
+      .run();
+  }
+
+  public deleteCredential(): void {
+    this.dbService.getDb().delete(privateCredentials).run();
+  }
+
+  public listPrivateConversationIds(): string[] {
+    return this.dbService
+      .getDb()
+      .select({ id: privateConversations.id })
+      .from(privateConversations)
+      .all()
+      .map((r) => r.id);
   }
 
   public recordFailedAttempt(): { failedAttempts: number; lockedUntil: number | null } {
@@ -149,6 +193,7 @@ export class PrivateChatRepository {
       lockedUntil: isLockedOut ? cred.lockedUntil : null,
       failedAttempts: cred.failedAttempts,
       recoveryHint: cred.recoveryHint,
+      hasRecoveryKey: Boolean(cred.recoveryHash),
     };
   }
 

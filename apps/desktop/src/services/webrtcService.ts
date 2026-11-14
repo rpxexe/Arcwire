@@ -59,6 +59,7 @@ export class WebRtcService {
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private makingOffer = false;
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ==========================================
   // Media acquisition
@@ -186,7 +187,7 @@ export class WebRtcService {
             signalType: 'ice-candidate',
             data: event.candidate.toJSON(),
           })
-          .catch(() => {});
+          .catch((err) => console.warn('[WebRtcService] Failed to send ICE candidate:', err));
       }
     };
 
@@ -194,7 +195,23 @@ export class WebRtcService {
       const state = pc.iceConnectionState;
       this.callbacks?.onIceConnectionStateChange(state);
 
+      if (state === 'checking' && !this.connectTimer) {
+        this.connectTimer = setTimeout(() => {
+          this.connectTimer = null;
+          const now = this.peerConnection?.iceConnectionState;
+          if (now !== 'connected' && now !== 'completed') {
+            this.callbacks?.onCallEnded(
+              'the media connection could not be established. Allow Arcwire (the app, not only its ports) through Windows Firewall on both PCs.'
+            );
+          }
+        }, 25_000);
+      }
+
       if (state === 'connected' || state === 'completed') {
+        if (this.connectTimer) {
+          clearTimeout(this.connectTimer);
+          this.connectTimer = null;
+        }
         if (this.disconnectTimer) {
           clearTimeout(this.disconnectTimer);
           this.disconnectTimer = null;
@@ -520,6 +537,10 @@ export class WebRtcService {
   }
 
   private closePeerOnly(): void {
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
     if (this.disconnectTimer) {
       clearTimeout(this.disconnectTimer);
       this.disconnectTimer = null;

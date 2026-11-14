@@ -15,6 +15,8 @@ import {
   SearchMessagesInputSchema,
   SetupUnlockCredentialInputSchema,
   UnlockPrivateInputSchema,
+  ChangePrivatePasswordInputSchema,
+  ResetPrivateWithRecoveryInputSchema,
   CreatePrivateConversationInputSchema,
   CreateInvitationInputSchema,
   RedeemInvitationInputSchema,
@@ -214,6 +216,18 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   ipcMain.handle(IpcChannels.WINDOW_CLOSE, () => {
     const win = getMainWindow();
     if (win) win.close();
+  });
+
+  ipcMain.handle(IpcChannels.WINDOW_SET_TITLEBAR_OVERLAY, (_event, colors: { color?: string; symbolColor?: string }) => {
+    const win = getMainWindow();
+    const isHex = (v?: string) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+    if (win && process.platform === 'win32' && isHex(colors?.color) && isHex(colors?.symbolColor)) {
+      try {
+        win.setTitleBarOverlay({ color: colors.color, symbolColor: colors.symbolColor, height: 36 });
+      } catch {
+        // window created without an overlay
+      }
+    }
   });
 
   ipcMain.handle(IpcChannels.WINDOW_MINIMIZE_TO_TRAY, () => {
@@ -578,7 +592,23 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
 
   ipcMain.handle(IpcChannels.PRIVATE_SETUP_CREDENTIAL, async (_event, rawInput: unknown) => {
     const input = SetupUnlockCredentialInputSchema.parse(rawInput);
-    await privateSession.setupCredential(input);
+    return privateSession.setupCredential(input);
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_CHANGE_PASSWORD, async (_event, rawInput: unknown) => {
+    return privateSession.changePassword(ChangePrivatePasswordInputSchema.parse(rawInput));
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_GENERATE_RECOVERY_KEY, async () => {
+    return privateSession.generateRecoveryKey();
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_RESET_WITH_RECOVERY, async (_event, rawInput: unknown) => {
+    return privateSession.resetWithRecoveryKey(ResetPrivateWithRecoveryInputSchema.parse(rawInput));
+  });
+
+  ipcMain.handle(IpcChannels.PRIVATE_RESET_WIPE, (_event, rawInput: { confirmation?: string }) => {
+    privateSession.resetAndWipe(String(rawInput?.confirmation ?? ''));
   });
 
   ipcMain.handle(IpcChannels.PRIVATE_UNLOCK, async (_event, rawInput: unknown) => {

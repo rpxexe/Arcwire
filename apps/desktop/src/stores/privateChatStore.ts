@@ -21,6 +21,9 @@ interface PrivateChatState {
   isCreateModalOpen: boolean;
   isInviteModalOpen: boolean;
   isJoinModalOpen: boolean;
+  /** Recovery key to show once (after setup, reset or regeneration) */
+  pendingRecoveryKey: string | null;
+  isSecurityModalOpen: boolean;
 
   // Actions
   init: () => Promise<void>;
@@ -55,6 +58,12 @@ interface PrivateChatState {
   setInviteModalOpen: (open: boolean) => void;
   setJoinModalOpen: (open: boolean) => void;
   setError: (err: string | null) => void;
+  changePassword: (currentPassword: string, newPassword: string, recoveryHint?: string) => Promise<{ success: boolean; error?: string }>;
+  generateRecoveryKey: () => Promise<void>;
+  resetWithRecoveryKey: (recoveryKey: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  resetWipe: (confirmation: string) => Promise<{ success: boolean; error?: string }>;
+  clearPendingRecoveryKey: () => void;
+  setSecurityModalOpen: (open: boolean) => void;
 }
 
 export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
@@ -71,6 +80,8 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
   isCreateModalOpen: false,
   isInviteModalOpen: false,
   isJoinModalOpen: false,
+  pendingRecoveryKey: null,
+  isSecurityModalOpen: false,
 
   init: async () => {
     try {
@@ -156,7 +167,8 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       if (window.api?.setupPrivateCredential) {
-        await window.api.setupPrivateCredential({ password, recoveryHint });
+        const result = await window.api.setupPrivateCredential({ password, recoveryHint });
+        if (result?.recoveryKey) set({ pendingRecoveryKey: result.recoveryKey });
         await get().fetchStatus();
         await get().fetchConversations();
       }
@@ -505,4 +517,54 @@ export const usePrivateChatStore = create<PrivateChatState>((set, get) => ({
   setInviteModalOpen: (open: boolean) => set({ isInviteModalOpen: open, error: null }),
   setJoinModalOpen: (open: boolean) => set({ isJoinModalOpen: open, error: null }),
   setError: (err: string | null) => set({ error: err }),
+
+  changePassword: async (currentPassword, newPassword, recoveryHint) => {
+    try {
+      const res = await window.api.changePrivatePassword({ currentPassword, newPassword, recoveryHint });
+      await get().fetchStatus();
+      return { success: res.success, error: res.error };
+    } catch (err) {
+      return { success: false, error: cleanIpcError(err) };
+    }
+  },
+
+  generateRecoveryKey: async () => {
+    try {
+      const { recoveryKey } = await window.api.generatePrivateRecoveryKey();
+      set({ pendingRecoveryKey: recoveryKey });
+      await get().fetchStatus();
+    } catch (err) {
+      set({ error: cleanIpcError(err) });
+    }
+  },
+
+  resetWithRecoveryKey: async (recoveryKey, newPassword) => {
+    try {
+      const res = await window.api.resetPrivateWithRecoveryKey({ recoveryKey, newPassword });
+      if (res.success) {
+        if (res.recoveryKey) set({ pendingRecoveryKey: res.recoveryKey });
+        await get().fetchStatus();
+        await get().fetchConversations();
+      } else {
+        set({ lockedUntil: res.lockedUntil ?? get().lockedUntil });
+      }
+      return { success: res.success, error: res.error };
+    } catch (err) {
+      return { success: false, error: cleanIpcError(err) };
+    }
+  },
+
+  resetWipe: async (confirmation) => {
+    try {
+      await window.api.resetPrivateWipe({ confirmation });
+      set({ conversations: [], activeConversationId: null, messagesByConversation: {}, invitationsByConversation: {}, lockedUntil: null, error: null });
+      await get().fetchStatus();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: cleanIpcError(err) };
+    }
+  },
+
+  clearPendingRecoveryKey: () => set({ pendingRecoveryKey: null }),
+  setSecurityModalOpen: (open) => set({ isSecurityModalOpen: open }),
 }));

@@ -70,6 +70,7 @@ export enum IpcChannels {
   WINDOW_MAXIMIZE = 'window:maximize',
   WINDOW_CLOSE = 'window:close',
   WINDOW_MINIMIZE_TO_TRAY = 'window:minimize-to-tray',
+  WINDOW_SET_TITLEBAR_OVERLAY = 'window:set-titlebar-overlay',
   SYSTEM_GET_INFO = 'system:get-info',
   SYSTEM_GET_INTERFACES = 'system:get-interfaces',
   SYSTEM_GET_PATHS = 'system:get-paths',
@@ -121,6 +122,10 @@ export enum IpcChannels {
   PRIVATE_INVITATION_REDEEM = 'private:invitation-redeem',
   PRIVATE_INVITATIONS_LIST = 'private:invitations-list',
   PRIVATE_INVITATION_REVOKE = 'private:invitation-revoke',
+  PRIVATE_CHANGE_PASSWORD = 'private:change-password',
+  PRIVATE_GENERATE_RECOVERY_KEY = 'private:generate-recovery-key',
+  PRIVATE_RESET_WITH_RECOVERY = 'private:reset-with-recovery',
+  PRIVATE_RESET_WIPE = 'private:reset-wipe',
 
   // File Transfer (Phase 5)
   TRANSFERS_LIST = 'transfers:list',

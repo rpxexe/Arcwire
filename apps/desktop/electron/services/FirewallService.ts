@@ -20,6 +20,90 @@ function runPowerShell(script: string, timeoutMs = 30_000): Promise<string> {
   });
 }
 
+export interface ParsedRule {
+  enabled: boolean;
+  inbound: boolean;
+  action: string;
+  protocol: string;
+  localPort: string;
+  program: string;
+}
+
+function readNetshInboundRules(): Promise<ParsedRule[]> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'netsh',
+      ['advfirewall', 'firewall', 'show', 'rule', 'name=all', 'dir=in', 'verbose'],
+      { windowsHide: true, timeout: 20_000, maxBuffer: 32 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) return reject(err);
+        resolve(parseNetshRules(stdout));
+      }
+    );
+  });
+}
+
+/** Parses `netsh advfirewall firewall show rule ... verbose` (English labels). */
+export function parseNetshRules(text: string): ParsedRule[] {
+  const rules: ParsedRule[] = [];
+  for (const block of text.split(/\r?\n\s*\r?\n/)) {
+    const fields: Record<string, string> = {};
+    for (const line of block.split(/\r?\n/)) {
+      const m = line.match(/^([A-Za-z ]+):\s*(.*)$/);
+      if (m) fields[m[1]!.trim().toLowerCase()] = m[2]!.trim();
+    }
+    if (!fields['rule name']) continue;
+    rules.push({
+      enabled: (fields['enabled'] ?? '').toLowerCase() === 'yes',
+      inbound: (fields['direction'] ?? '').toLowerCase() === 'in',
+      action: (fields['action'] ?? '').toLowerCase(),
+      protocol: (fields['protocol'] ?? 'any').toLowerCase(),
+      localPort: (fields['localport'] ?? 'any').toLowerCase(),
+      program: fields['program'] ?? '',
+    });
+  }
+  return rules;
+}
+
+const expandEnv = (value: string) =>
+  value.replace(/%([^%]+)%/g, (_m, name: string) => process.env[name] ?? process.env[name.toUpperCase()] ?? `%${name}%`);
+
+function coversPort(spec: string, port: number): boolean {
+  if (!spec || spec === 'any') return true;
+  return spec.split(',').some((part) => {
+    const p = part.trim();
+    const range = p.match(/^(\d+)-(\d+)$/);
+    if (range) return port >= Number(range[1]) && port <= Number(range[2]);
+    return p === String(port);
+  });
+}
+
+/** Decides whether inbound Arcwire traffic is allowed / blocked by the given rules. */
+export function evaluateRules(
+  rules: ParsedRule[],
+  executable: string,
+  tcp: number,
+  udp: number
+): { allowed: boolean; blocked: boolean } {
+  const exe = executable.toLowerCase();
+  const active = rules.filter((r) => r.enabled && r.inbound);
+  const forThisApp = (r: ParsedRule) => r.program !== '' && expandEnv(r.program).toLowerCase() === exe;
+  const anyProgram = (r: ParsedRule) => r.program === '' || r.program.toLowerCase() === 'any';
+  const coversProto = (r: ParsedRule, proto: 'tcp' | 'udp', port: number) =>
+    (r.protocol === proto || r.protocol === 'any') && coversPort(r.localPort, port);
+
+  const appAllowed = active.some((r) => r.action === 'allow' && forThisApp(r));
+  const portAllowed = (proto: 'tcp' | 'udp', port: number) =>
+    active.some((r) => r.action === 'allow' && anyProgram(r) && r.localPort !== 'any' && coversProto(r, proto, port));
+  const blocked = active.some(
+    (r) =>
+      r.action === 'block' &&
+      (forThisApp(r) || (anyProgram(r) && r.localPort !== 'any' && (coversProto(r, 'tcp', tcp) || coversProto(r, 'udp', udp))))
+  );
+
+  return { allowed: appAllowed || (portAllowed('tcp', tcp) && portAllowed('udp', udp)), blocked };
+}
+
 /**
  * Inspects and repairs Windows Firewall rules so other LAN devices can reach
  * Arcwire's discovery (UDP) and messaging/calling (TCP) ports.
@@ -37,22 +121,39 @@ export class FirewallService {
       return { supported: false, allowed: true, blocked: false, executable };
     }
     const { tcp, udp } = this.ports();
-    const script = `
-$p = ${psQuote(executable)}
-$app = @(Get-NetFirewallApplicationFilter -Program $p -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Direction -eq 'Inbound' -and $_.Enabled -eq 'True' })
-$allow = @($app | Where-Object { $_.Action -eq 'Allow' }).Count
-$block = @($app | Where-Object { $_.Action -eq 'Block' }).Count
-$portRules = @(Get-NetFirewallRule -DisplayName 'Arcwire LAN*' -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Allow' }).Count
-$cat = (Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select-Object -First 1).NetworkCategory
-"$allow|$block|$portRules|$cat"`;
+    const networkCategory = await runPowerShell(
+      '(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select-Object -First 1).NetworkCategory'
+    ).catch(() => '');
+
+    // Primary: netsh lists every rule with program and ports, fast and without admin rights
+    // (Get-NetFirewallPortFilter is access-denied for standard users).
     try {
-      const out = await runPowerShell(script);
-      const [allow, block, portRules, category] = out.split(/\r?\n/).pop()!.split('|');
+      const rules = await readNetshInboundRules();
+      if (rules.length > 0) {
+        const verdict = evaluateRules(rules, executable, tcp, udp);
+        return { supported: true, ...verdict, networkCategory: networkCategory || undefined, executable };
+      }
+    } catch {
+      // fall through to the PowerShell check
+    }
+
+    // Fallback (e.g. localized netsh output): program rules via PowerShell, env vars expanded.
+    const script = `
+$p = ${psQuote(executable)}.ToLowerInvariant()
+$inbound = @{}
+Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | ForEach-Object { $inbound[$_.InstanceID] = $_ }
+$appRules = @(Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue |
+  Where-Object { $_.Program -and $_.Program -ne 'Any' -and ([Environment]::ExpandEnvironmentVariables($_.Program).ToLowerInvariant() -eq $p) } |
+  ForEach-Object { $inbound[$_.InstanceID] } | Where-Object { $_ })
+"$(@($appRules | Where-Object { $_.Action -eq 'Allow' }).Count)|$(@($appRules | Where-Object { $_.Action -eq 'Block' }).Count)"`;
+    try {
+      const out = await runPowerShell(script, 60_000);
+      const [allow, block] = out.split(/\r?\n/).pop()!.split('|');
       return {
         supported: true,
-        allowed: Number(allow) > 0 || Number(portRules) >= 2,
+        allowed: Number(allow) > 0,
         blocked: Number(block) > 0,
-        networkCategory: category || undefined,
+        networkCategory: networkCategory || undefined,
         executable,
       };
     } catch (err: any) {
@@ -61,6 +162,7 @@ $cat = (Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select-Object -
         allowed: false,
         blocked: false,
         executable,
+        networkCategory: networkCategory || undefined,
         error: `Could not read firewall rules (TCP ${tcp}, UDP ${udp}): ${err?.message ?? err}`,
       };
     }

@@ -59,7 +59,7 @@ All PCs must be on the same Wi-Fi / LAN. Within ~30 seconds they appear under **
 | **Emoji & files** | Emoji picker (offline), paste files and screenshots with **Ctrl+V**, drag & drop, file bubbles with image preview, progress, pause/resume, open / show in folder |
 | **File transfer** | 256 KB chunked streaming with SHA-256 verification; received files go to `Downloads\Arcwire` |
 | **Calls** | Voice, video and screen sharing over WebRTC, switch screen source, live sending/receiving statistics |
-| **Private chats** | PIN-protected workspace (Argon2id), PRV-XXXX-XXXX invitation codes that work across PCs, lock any normal chat, auto-lock on Windows lock/sleep |
+| **Private chats** | PIN-protected workspace (Argon2id), PRV-XXXX-XXXX invitation codes that work across PCs, lock any normal chat, auto-lock on Windows lock/sleep, change PIN, recovery key, erase & start over |
 | **Permissions** | Microphone/camera permission prompt and Windows Firewall status with a one-click fix |
 
 ---
@@ -98,6 +98,8 @@ administrator prompt.
 ```powershell
 netsh advfirewall firewall add rule name="Arcwire LAN TCP" dir=in action=allow protocol=TCP localport=45821-45822 profile=any
 netsh advfirewall firewall add rule name="Arcwire LAN UDP" dir=in action=allow protocol=UDP localport=45820 profile=any
+# Voice/video/screen media uses dynamic UDP ports, so also allow the app itself:
+netsh advfirewall firewall add rule name="Arcwire LAN (app)" dir=in action=allow program="%LOCALAPPDATA%\Programs\Arcwire\Arcwire.exe" profile=any
 ```
 
 Block rules override allow rules: open `wf.msc` → **Inbound Rules** and delete any *Arcwire* / *Electron* rule with a
@@ -339,6 +341,19 @@ IP Messenger enforces multi-tiered testing:
 ---
 
 ## Changelog
+
+### 1.1.2
+- **Private Chats PIN management:** change PIN (current PIN required), one-time recovery key to reset a forgotten PIN
+  while keeping chats, and "Erase & start over" when both are lost. Wrong PIN/key attempts share the lockout policy.
+- **Native window controls on Windows:** minimize / maximize-restore / close stay visible when maximized and support
+  Windows 11 snap layouts; colors follow the app theme.
+- **File Transfers tab:** drag & drop files to send; sends go through the peer's chat so they appear as file bubbles.
+- **Windows Firewall status** is detected reliably (rules from the Windows prompt, `netsh`, port ranges, env-var
+  paths), with a Re-check button and automatic refresh.
+
+### 1.1.1
+- **Calls no longer stuck on "Connecting…":** dead sockets are evicted and signals retried; real LAN host IPs are used
+  for WebRTC instead of unresolvable mDNS names; a clear error appears if media cannot connect within 25 s.
 
 ### 1.1.0
 See [What's New in 1.1.0](#whats-new-in-110). Database changes are additive and applied automatically on first launch.

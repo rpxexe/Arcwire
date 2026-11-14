@@ -7,6 +7,8 @@ import type {
   PrivateStatus,
   SetupUnlockCredentialInput,
   UnlockPrivateInput,
+  ChangePrivatePasswordInput,
+  ResetPrivateWithRecoveryInput,
   CreatePrivateConversationInput,
   CreateInvitationInput,
   RedeemInvitationInput,
@@ -39,6 +41,20 @@ interface PendingJoin {
 }
 
 const JOIN_TIMEOUT_MS = 10_000;
+const RECOVERY_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
+export const WIPE_CONFIRMATION = 'RESET';
+
+type VerifyResult = { success: boolean; error?: string; lockedUntil?: number | null };
+
+function generateRecoveryKey(): string {
+  const bytes = crypto.randomBytes(24);
+  const chars = Array.from(bytes, (b) => RECOVERY_ALPHABET[b % RECOVERY_ALPHABET.length]).join('');
+  return chars.match(/.{4}/g)!.join('-'); // XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+}
+
+function normalizeRecoveryKey(key: string): string {
+  return key.toUpperCase().replace(/[^0-9A-Z]/g, '');
+}
 const JOIN_RATE_LIMIT = 10; // requests per peer per minute
 
 export class PrivateSessionManager {
@@ -95,16 +111,130 @@ export class PrivateSessionManager {
     return this.repo.getStatus(this.isUnlocked());
   }
 
-  public async setupCredential(input: SetupUnlockCredentialInput): Promise<void> {
+  public async setupCredential(input: SetupUnlockCredentialInput): Promise<{ recoveryKey: string }> {
     if (this.repo.getCredential()) {
       throw new Error('A PIN/passphrase is already configured. Unlock with it instead.');
     }
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = await Argon2Hasher.hashPassword(input.password);
     this.repo.setCredential(hash, salt, input.recoveryHint);
+    const recoveryKey = await this.rotateRecoveryKey();
     this._isUnlocked = true;
     this.unlockedAt = Date.now();
     this.resetAutoLockTimer();
+    this.notifyStateChange();
+    return { recoveryKey };
+  }
+
+  // ==========================================
+  // PIN change / recovery / reset
+  // ==========================================
+
+  /** Applies the shared lockout policy to a failed secret check. */
+  private registerFailure(label: string): VerifyResult {
+    const now = Date.now();
+    const { failedAttempts, lockedUntil } = this.repo.recordFailedAttempt();
+    if (lockedUntil && lockedUntil > now) {
+      this._isUnlocked = false;
+      this.notifyStateChange();
+      return { success: false, error: `Incorrect ${label}. Locked for ${Math.ceil((lockedUntil - now) / 1000)}s`, lockedUntil };
+    }
+    return { success: false, error: `Incorrect ${label} (${failedAttempts} failed attempt${failedAttempts > 1 ? 's' : ''})` };
+  }
+
+  private lockoutError(): VerifyResult | null {
+    const cred = this.repo.getCredential();
+    if (!cred) return { success: false, error: 'Private chats have no PIN configured yet.' };
+    if (cred.lockedUntil && cred.lockedUntil > Date.now()) {
+      return {
+        success: false,
+        error: `Too many failed attempts. Try again in ${Math.ceil((cred.lockedUntil - Date.now()) / 1000)}s`,
+        lockedUntil: cred.lockedUntil,
+      };
+    }
+    return null;
+  }
+
+  private async rotateRecoveryKey(): Promise<string> {
+    const recoveryKey = generateRecoveryKey();
+    this.repo.setRecoveryHash(await Argon2Hasher.hashPassword(normalizeRecoveryKey(recoveryKey)));
+    return recoveryKey;
+  }
+
+  private unlockNow(): void {
+    this._isUnlocked = true;
+    this.unlockedAt = Date.now();
+    this.resetAutoLockTimer();
+    this.notifyStateChange();
+  }
+
+  /** Changes the PIN. Requires the current PIN; chats are kept. */
+  public async changePassword(input: ChangePrivatePasswordInput): Promise<VerifyResult> {
+    const blocked = this.lockoutError();
+    if (blocked) return blocked;
+    const cred = this.repo.getCredential()!;
+    if (input.currentPassword === input.newPassword) {
+      return { success: false, error: 'The new PIN must be different from the current one.' };
+    }
+    const ok = await Argon2Hasher.verifyPassword(cred.passwordHash, input.currentPassword).catch(() => false);
+    if (!ok) return this.registerFailure('current PIN');
+
+    const hash = await Argon2Hasher.hashPassword(input.newPassword);
+    this.repo.updatePasswordHash(hash, crypto.randomBytes(16).toString('hex'), input.recoveryHint);
+    this.unlockNow();
+    return { success: true };
+  }
+
+  /** Creates a new recovery key (the previous one stops working). Requires an unlocked session. */
+  public async generateRecoveryKey(): Promise<{ recoveryKey: string }> {
+    this.requireUnlocked();
+    this.resetAutoLockTimer();
+    const recoveryKey = await this.rotateRecoveryKey();
+    this.notifyStateChange();
+    return { recoveryKey };
+  }
+
+  /**
+   * Forgot-PIN flow that keeps all chats: proves ownership with the recovery key, sets a new
+   * PIN and issues a fresh recovery key (the used one is single-use).
+   */
+  public async resetWithRecoveryKey(
+    input: ResetPrivateWithRecoveryInput
+  ): Promise<VerifyResult & { recoveryKey?: string }> {
+    const blocked = this.lockoutError();
+    if (blocked) return blocked;
+    const cred = this.repo.getCredential()!;
+    if (!cred.recoveryHash) {
+      return { success: false, error: 'No recovery key was created for this PIN. Use "Erase private chats" instead.' };
+    }
+    const ok = await Argon2Hasher.verifyPassword(cred.recoveryHash, normalizeRecoveryKey(input.recoveryKey)).catch(() => false);
+    if (!ok) return this.registerFailure('recovery key');
+
+    const hash = await Argon2Hasher.hashPassword(input.newPassword);
+    this.repo.updatePasswordHash(hash, crypto.randomBytes(16).toString('hex'), input.recoveryHint);
+    const recoveryKey = await this.rotateRecoveryKey();
+    this.unlockNow();
+    return { success: true, recoveryKey };
+  }
+
+  /**
+   * Last-resort reset when both the PIN and the recovery key are lost: permanently deletes
+   * every private conversation, every locked chat and all invitations, then removes the PIN.
+   * Nothing protected survives, so this cannot be used to read someone else's chats.
+   */
+  public resetAndWipe(confirmation: string): void {
+    if (confirmation !== WIPE_CONFIRMATION) {
+      throw new Error(`Type ${WIPE_CONFIRMATION} to confirm erasing all private chats.`);
+    }
+    const ids = new Set<string>(this.repo.listPrivateConversationIds());
+    if (this.conversationRepo) {
+      for (const c of this.conversationRepo.getConversations(this.localDeviceId, true)) {
+        if (c.type === 'private' || c.isChatLocked) ids.add(c.id);
+      }
+      for (const id of ids) this.conversationRepo.deleteConversation(id);
+    }
+    this.repo.deleteCredential();
+    this.lock();
     this.notifyStateChange();
   }
 
